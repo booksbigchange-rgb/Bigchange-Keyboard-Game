@@ -2,21 +2,45 @@
 
 A classroom-friendly typing game for BigChange students.
 
-## Goal
-Help students build keyboard confidence, typing speed, and accuracy through short lessons, timed challenges, and games.
+## Current student experience
+- Student profile with local progress on the current computer
+- Seven guided typing lessons
+- Separate Easy, Medium, and Hard free-practice modes
+- Live WPM, accuracy, and mistake feedback
+- Continuous typing after mistakes with short automatic alignment recovery
+- 90% lesson-completion threshold
+- Real one-minute typing challenge that starts on the first keystroke
+- Saved best challenge WPM and accuracy
+- Progress tracking
+- Letter Rain, Rocket Race, and Bubble Pop keyboard games
+- New-student reset for shared classroom computers
+- Responsive browser layout
+- Local/offline-friendly plain HTML, CSS, and JavaScript
 
-## Planned student experience
-- Guided typing lessons
-- Live WPM and accuracy
-- 1-minute typing challenge
-- Easy, Medium, and Hard levels
-- Streaks and scores
-- Classroom-friendly game modes
-- Local/offline-friendly progress where possible
+## Classroom core checks
+The `student-flow` branch runs automated checks on pushes and pull requests:
+
+- JavaScript syntax checks
+- Typing-engine regression tests
+- DOM smoke checks
+- Chromium browser acceptance tests for profile, lessons, practice, mistakes, challenge timing, persistence, games, navigation, reset flow, and mobile-width overflow
+
+The app has no build step.
+
+## Running locally
+Open `index.html` directly, or serve the folder:
+
+```bash
+python3 -m http.server 4173
+```
+
+Then open `http://localhost:4173`.
+
+Progress is stored in the browser's local storage on that computer.
 
 ## Project base and attribution
 This project is adapted from the open-source KeyQuest typing tutor by its contributors and retains the original MIT License notice.
 
 Original project: https://github.com/ovurevu/keyquest
 
-The student-facing product will be branded as **BigChange Keyboard Game**.
+The student-facing product is branded as **BigChange Keyboard Game**.
