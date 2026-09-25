@@ -80,7 +80,7 @@ KQ.TypingSession=class{
     this.updateWpm();
     return true
   }
-  finish(){if(this.done)return;this.done=true;this.endTime=performance.now();this.updateWpm()}
+  finish(at=performance.now()){if(this.done)return;this.done=true;this.endTime=Math.max(this.startTime??at,at);this.updateWpm()}
   elapsedMs(){return this.startTime===null?0:(this.endTime??performance.now())-this.startTime}
   correctCount(){let n=0;for(let i=0;i<this.pos;i++)if(this.states[i]===KQ.CORRECT)n++;return n}
   currentErrors(){let n=0;for(let i=0;i<this.pos;i++)if(this.states[i]===KQ.WRONG)n++;return n}
