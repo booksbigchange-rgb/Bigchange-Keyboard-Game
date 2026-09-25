@@ -25,6 +25,7 @@ test('one mistake plus eight correct characters rounds below pass mark',()=>{con
 test('currentErrors counts unresolved wrong target positions',()=>{const s=new KQ.TypingSession('abcd');s.input('x');s.input('y');eq(s.stats().currentErrors,2);s.backspace();eq(s.stats().currentErrors,1)});
 test('wpm stays zero before minimum sample',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=4000;s.pos=10;s.states.fill(KQ.CORRECT);s.updateWpm();eq(s.wpm,0)});
 test('wpm uses correct characters and elapsed time',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.CORRECT);s.updateWpm();eq(s.wpm,2)});
+test('fast completed lesson still gets a final wpm',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.pos=10;s.states.fill(KQ.CORRECT);s.finish(4000);eq(s.done,true);eq(s.wpm,40)});
 test('wrong characters do not inflate wpm',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.WRONG);s.updateWpm();eq(s.wpm,0)});
 test('wpm freezes after finish',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.CORRECT);s.done=true;s.updateWpm();const first=s.stats().wpm;const second=s.stats().wpm;eq(first,2);eq(second,2)});
 test('finish is idempotent',()=>{const s=new KQ.TypingSession('ab');s.input('a');s.finish();const end=s.endTime;s.finish();eq(s.endTime,end);eq(s.done,true)});
