@@ -1,9 +1,10 @@
 // BigChange Typing Core V2.
 //
-// Interaction pattern: a real browser text input is the source of truth.
-// The engine never owns an artificial cursor and never blocks a wrong key.
-// It aligns the student's current text to the nearest target prefix so
-// insertions, omissions, substitutions, and Backspace edits do not cascade.
+// The browser textarea is the source of truth. Live feedback is deliberately
+// positional: typed character i is compared with target character i.
+// Nothing is re-aligned later, so feedback cannot pause, jump forward, or
+// retroactively move mistakes after more keys arrive. Backspace and normal
+// textarea editing remain fully native.
 //
 // Architecture is intentionally pure (no DOM, storage, or timers), following
 // the separation used by open-source typing tutors such as Layer Tutor (MIT).
@@ -13,129 +14,73 @@ KQ.PENDING = 0;
 KQ.CORRECT = 1;
 KQ.WRONG = 2;
 
-const ALIGN_LOOKAHEAD = 12;
-
-function chooseStep(match, sub, insert, del) {
-  const best = Math.min(match, sub, insert, del);
-  if (match === best) return ['match', best];
-  // Prefer treating a trailing mismatch as an extra typed character instead
-  // of prematurely consuming the next target character. Future input can then
-  // realign naturally without a cascade.
-  if (insert === best) return ['insert', best];
-  if (sub === best) return ['sub', best];
-  return ['delete', best];
-}
-
 KQ.alignText = function alignText(target, typed) {
   target = String(target ?? '');
   typed = String(typed ?? '');
 
-  const m = typed.length;
-  const limit = Math.min(target.length, Math.max(0, m + ALIGN_LOOKAHEAD));
-  const width = limit + 1;
-
-  const cost = Array.from({ length: m + 1 }, () => new Uint16Array(width));
-  const op = Array.from({ length: m + 1 }, () => new Uint8Array(width));
-  // 1 match, 2 substitution, 3 insertion (extra typed), 4 deletion (missed target)
-
-  for (let j = 1; j <= limit; j++) {
-    cost[0][j] = j;
-    op[0][j] = 4;
-  }
-  for (let i = 1; i <= m; i++) {
-    cost[i][0] = i;
-    op[i][0] = 3;
-  }
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= limit; j++) {
-      const same = typed[i - 1] === target[j - 1];
-      const match = same ? cost[i - 1][j - 1] : 65535;
-      const sub = same ? 65535 : cost[i - 1][j - 1] + 1;
-      const insert = cost[i - 1][j] + 1;
-      const del = cost[i][j - 1] + 1;
-      const [kind, best] = chooseStep(match, sub, insert, del);
-      cost[i][j] = best;
-      op[i][j] = kind === 'match' ? 1 : kind === 'sub' ? 2 : kind === 'insert' ? 3 : 4;
-    }
-  }
-
-  let end = 0;
-  let bestCost = cost[m][0];
-  for (let j = 1; j <= limit; j++) {
-    const value = cost[m][j];
-    if (value < bestCost) {
-      bestCost = value;
-      end = j;
-      continue;
-    }
-    if (value !== bestCost) continue;
-
-    const endMatches = m > 0 && j > 0 && typed[m - 1] === target[j - 1];
-    const chosenMatches = m > 0 && end > 0 && typed[m - 1] === target[end - 1];
-
-    if (endMatches && !chosenMatches) {
-      end = j;
-    } else if (endMatches === chosenMatches) {
-      // At the actual end of a lesson, let an equal-cost final substitution
-      // finish instead of requiring a phantom extra character.
-      if (m >= target.length && j === target.length) end = j;
-      else if (!endMatches && j < end) end = j;
-      else if (endMatches && j > end) end = j;
-    }
-  }
-
+  const progress = Math.min(typed.length, target.length);
   const targetStates = new Array(target.length).fill(KQ.PENDING);
-  const typedStates = new Array(m).fill(KQ.PENDING);
+  const typedStates = new Array(typed.length).fill(KQ.PENDING);
   const operations = [];
-
-  let i = m;
-  let j = end;
   let correct = 0;
   let errors = 0;
 
-  while (i > 0 || j > 0) {
-    const code = op[i]?.[j] ?? (i > 0 ? 3 : 4);
-
-    if (code === 1) {
-      targetStates[j - 1] = KQ.CORRECT;
-      typedStates[i - 1] = KQ.CORRECT;
-      operations.push({ type: 'match', targetIndex: j - 1, typedIndex: i - 1 });
+  for (let i = 0; i < progress; i++) {
+    if (typed[i] === target[i]) {
+      targetStates[i] = KQ.CORRECT;
+      typedStates[i] = KQ.CORRECT;
+      operations.push({ type: 'match', targetIndex: i, typedIndex: i });
       correct++;
-      i--;
-      j--;
-    } else if (code === 2) {
-      targetStates[j - 1] = KQ.WRONG;
-      typedStates[i - 1] = KQ.WRONG;
-      operations.push({ type: 'substitute', targetIndex: j - 1, typedIndex: i - 1 });
-      errors++;
-      i--;
-      j--;
-    } else if (code === 3) {
-      typedStates[i - 1] = KQ.WRONG;
-      operations.push({ type: 'insert', targetIndex: j, typedIndex: i - 1 });
-      errors++;
-      i--;
     } else {
-      targetStates[j - 1] = KQ.WRONG;
-      operations.push({ type: 'delete', targetIndex: j - 1, typedIndex: i });
+      targetStates[i] = KQ.WRONG;
+      typedStates[i] = KQ.WRONG;
+      operations.push({ type: 'substitute', targetIndex: i, typedIndex: i });
       errors++;
-      j--;
     }
   }
 
-  operations.reverse();
+  for (let i = target.length; i < typed.length; i++) {
+    typedStates[i] = KQ.WRONG;
+    operations.push({ type: 'insert', targetIndex: target.length, typedIndex: i });
+    errors++;
+  }
 
   return {
-    progress: end,
+    progress,
     correct,
     errors,
-    distance: bestCost,
+    distance: errors,
     targetStates,
     typedStates,
     operations
   };
 };
+
+function inputChange(previousValue, nextValue, target) {
+  let start = 0;
+  const shared = Math.min(previousValue.length, nextValue.length);
+  while (start < shared && previousValue[start] === nextValue[start]) start++;
+
+  let oldEnd = previousValue.length;
+  let newEnd = nextValue.length;
+  while (
+    oldEnd > start &&
+    newEnd > start &&
+    previousValue[oldEnd - 1] === nextValue[newEnd - 1]
+  ) {
+    oldEnd--;
+    newEnd--;
+  }
+
+  let keystrokes = 0;
+  let errors = 0;
+  for (let i = start; i < newEnd; i++) {
+    keystrokes++;
+    if (i >= target.length || nextValue[i] !== target[i]) errors++;
+  }
+
+  return { keystrokes, errors };
+}
 
 KQ.TypingSession = class TypingSession {
   constructor(text) {
@@ -146,6 +91,7 @@ KQ.TypingSession = class TypingSession {
     this.done = this.text.length === 0;
     this.wpm = 0;
     this.totalErrors = 0;
+    this.totalKeystrokes = 0;
     this.lastAlignment = KQ.alignText(this.text, '');
     this.resultHandled = false;
     this.challengeResultHandled = false;
@@ -164,18 +110,11 @@ KQ.TypingSession = class TypingSession {
 
     if (this.startTime === null && value.length > 0) this.startTime = now;
 
+    const change = inputChange(previousValue, value, this.text);
+    this.totalKeystrokes += change.keystrokes;
+    this.totalErrors += change.errors;
     this.value = value;
     const next = KQ.alignText(this.text, value);
-
-    // Only typing/forward edits can add historical mistakes. Backspace or
-    // corrections may reduce the current edit distance, but the original
-    // mistake still counts toward lesson accuracy.
-    const grew = value.length > previousValue.length;
-    const changedWithoutShrink = value.length === previousValue.length && value !== previousValue;
-    if (grew || changedWithoutShrink) {
-      this.totalErrors += Math.max(0, next.errors - previous.errors);
-    }
-
     this.lastAlignment = next;
     this.updateWpm(now);
 
@@ -184,7 +123,9 @@ KQ.TypingSession = class TypingSession {
       return 'complete';
     }
 
-    return next.errors > previous.errors ? 'mistake' : next.errors < previous.errors ? 'corrected' : 'updated';
+    if (change.errors > 0) return 'mistake';
+    if (value.length < previousValue.length || next.errors < previous.errors) return 'corrected';
+    return 'updated';
   }
 
   finish(at = performance.now()) {
@@ -215,10 +156,11 @@ KQ.TypingSession = class TypingSession {
 
   stats(now = performance.now()) {
     const alignment = this.lastAlignment;
-    const attempts = alignment.correct + this.totalErrors;
+    const attempts = this.totalKeystrokes;
+    const successful = Math.max(0, attempts - this.totalErrors);
     return {
       wpm: this.wpm,
-      accuracy: attempts ? Math.max(0, Math.min(100, Math.round((alignment.correct / attempts) * 100))) : 100,
+      accuracy: attempts ? Math.max(0, Math.min(100, Math.round((successful / attempts) * 100))) : 100,
       mistakes: this.totalErrors,
       currentErrors: alignment.errors,
       typed: this.value.length,
