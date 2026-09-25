@@ -2,12 +2,19 @@
 
 A classroom-friendly typing game for BigChange students.
 
+## Typing Core V2
+
+The active development branch `typing-core-v2` replaces the older artificial-cursor typing model with a real browser textarea as the source of truth. Students can keep typing after mistakes, use Backspace naturally, and the comparison engine aligns the raw typed text against the target without locking the keyboard.
+
+The V2 direction is informed by MIT-licensed open-source typing projects documented in `THIRD_PARTY_NOTICES.md`.
+
 ## Current student experience
 - Student profile with local progress on the current computer
 - Seven guided typing lessons
 - Separate Easy, Medium, and Hard free-practice modes
 - Live WPM, accuracy, and mistake feedback
-- Continuous typing after mistakes with short automatic alignment recovery
+- Continuous typing after mistakes using a real browser text field
+- Natural Backspace editing without a locked error state
 - 90% lesson-completion threshold
 - Real one-minute typing challenge that starts on the first keystroke
 - Saved best challenge WPM and accuracy
