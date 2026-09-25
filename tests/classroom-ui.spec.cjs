@@ -204,6 +204,17 @@ test('Bubble Pop and Rocket Race accept their displayed keys', async ({ page })=
   await expect(page.locator('#game-score')).toHaveText('1');
 });
 
+test('new student reset clears saved classroom progress only after confirmation', async ({ page })=>{
+  await createStudent(page,'Student One');
+  await page.locator('[data-view="progress"]').click();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#new-student').click();
+  await page.waitForLoadState('domcontentloaded');
+  await expect(page.locator('#profile')).toBeVisible();
+  await expect(page.locator('#student-nav')).toBeHidden();
+  expect(await page.evaluate(()=>localStorage.getItem('bc-keyboard'))).toBeNull();
+});
+
 test('mobile-width page does not create horizontal overflow', async ({ page })=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
