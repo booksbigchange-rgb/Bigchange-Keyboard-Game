@@ -146,7 +146,7 @@ test('leaving a running challenge stops its timer', async ({ page })=>{
 });
 
 test('challenge finalization freezes the timer and keeps independent best metrics', async ({ page })=>{
-  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({name:'Challenger',completed:[],best:{wpm:99,accuracy:50}}))));
+  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({name:'Challenger',completed:[],best:{wpm:99,accuracy:50}})));
   await page.goto(BASE_URL);
   await page.locator('[data-view="challenge"]').click();
   await page.locator('#challenge-start').click();
