@@ -1,0 +1,18 @@
+name: Typing engine tests
+
+on:
+  push:
+    branches: [main, student-flow]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run typing engine regression tests
+        run: node tests/typing-engine.test.cjs
