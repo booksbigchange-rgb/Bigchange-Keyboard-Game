@@ -73,11 +73,12 @@ test('typing continues after a mistake and a single insertion realigns', async (
   await page.keyboard.type('asdf');
   await page.keyboard.type('p');
   await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('.typed-wrong')).toContainText('p');
+  await expect(page.locator('#typed-display')).toHaveValue('asdfp');
   await page.keyboard.type(' ');
   await page.keyboard.type('jkl;');
+  await expect(page.locator('#typed-display')).toHaveValue('asdfp jkl;');
   await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('.reference-current')).toHaveText(' ');
+  await expect(page.locator('#typed-display')).toBeEditable();
 });
 
 test('multiple accidental inserted characters recover instead of cascading', async ({ page })=>{
@@ -89,8 +90,9 @@ test('multiple accidental inserted characters recover instead of cascading', asy
   await page.keyboard.type(' ');
   await page.keyboard.type('j');
   await page.keyboard.type('kl;');
-  await expect(page.locator('#mistakes')).toHaveText('2');
-  await expect(page.locator('.reference-current')).toHaveText(' ');
+  await expect(page.locator('#typed-display')).toHaveValue('asdfpq jkl;');
+  await expect(page.locator('#typed-display')).toBeEditable();
+  expect(Number(await page.locator('#mistakes').textContent())).toBeGreaterThanOrEqual(2);
 });
 
 test('restart clears typed output and live stats', async ({ page })=>{
@@ -101,7 +103,20 @@ test('restart clears typed output and live stats', async ({ page })=>{
   await page.locator('#start').click();
   await expect(page.locator('#mistakes')).toHaveText('0');
   await expect(page.locator('#accuracy')).toHaveText('100%');
-  await expect(page.locator('#typed-display')).toContainText('Start typing here');
+  await expect(page.locator('#typed-display')).toHaveValue('');
+  await expect(page.locator('#typed-display')).toHaveAttribute('placeholder',/Start typing here/);
+});
+
+test('Backspace edits the real student text without locking input', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  await page.keyboard.type('asdfp');
+  await expect(page.locator('#typed-display')).toHaveValue('asdfp');
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('#typed-display')).toHaveValue('asdf');
+  await page.keyboard.type(' jkl;');
+  await expect(page.locator('#typed-display')).toHaveValue('asdf jkl;');
+  await expect(page.locator('#typed-display')).toBeEditable();
 });
 
 test('practice below 90 percent retries and a 90-plus retry completes', async ({ page })=>{
@@ -138,7 +153,8 @@ test('challenge waits for first key, accepts mistakes, and keeps accepting input
   await page.keyboard.type('X');
   await expect(page.locator('#mistakes')).toHaveText('1');
   await page.keyboard.type('Practice');
-  await expect(page.locator('#typed-display')).toContainText('Practice');
+  await expect(page.locator('#typed-display')).toHaveValue('XPractice');
+  await expect(page.locator('#typed-display')).toBeEditable();
   await page.waitForTimeout(1200);
   const seconds=Number(await page.locator('#timer-seconds').textContent());
   expect(seconds).toBeLessThan(60);
