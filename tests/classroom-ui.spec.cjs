@@ -19,6 +19,26 @@ async function targetText(page){
   return (await page.locator('#target').textContent()).replace(/\u00a0/g,' ');
 }
 
+test('deployed build marker identifies Typing Core V2', async ({ page })=>{
+  await page.goto(BASE_URL);
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v2-20260925-2');
+  await expect(page.locator('footer')).toContainText('Build core-v2-20260925-2');
+});
+
+test('editing in the middle of the textarea stays natural', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asdf jkl;');
+  await box.evaluate(el=>el.setSelectionRange(4,4));
+  await page.keyboard.type('p');
+  await expect(box).toHaveValue('asdfp jkl;');
+  await expect(box).toBeEditable();
+  await page.keyboard.press('Backspace');
+  await expect(box).toHaveValue('asdf jkl;');
+  await expect(box).toBeEditable();
+});
+
 test('profile gates the app and Enter starts the student session', async ({ page })=>{
   await fresh(page);
   await page.locator('#student-name').fill('Keyboard Student');
