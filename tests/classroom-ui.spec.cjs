@@ -37,7 +37,21 @@ test('every lesson opens a fresh typing session with non-empty target text', asy
     expect((await targetText(page)).length).toBeGreaterThan(3);
     await expect(page.locator('#accuracy')).toHaveText('100%');
     await expect(page.locator('#mistakes')).toHaveText('0');
+    await expect(page.locator('.levels')).toBeHidden();
+    await expect(page.locator('#start')).toHaveText('Restart Lesson');
   }
+});
+
+test('free Practice stays separate from Learn lesson completion', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-view="practice"]').click();
+  await expect(page.locator('.levels')).toBeVisible();
+  await expect(page.locator('#practice-heading')).toHaveText('Practice');
+  const target=await targetText(page);
+  await page.keyboard.type(target);
+  await expect(page.locator('#message')).toContainText('Practice complete');
+  await page.locator('[data-view="learn"]').click();
+  await expect(page.locator('#lesson-list em')).toHaveCount(0);
 });
 
 test('typing continues after a mistake and a single insertion realigns', async ({ page })=>{
@@ -145,7 +159,7 @@ test('saved progress is deduplicated and stored results are bounded', async ({ p
   await page.locator('[data-view="progress"]').click();
   await expect(page.locator('#progress-content')).toContainText('2 of 7 lessons completed');
   await expect(page.locator('#progress-content')).toContainText('Last result: 0 WPM · 100% accuracy');
-  await expect(page.locator('#progress-content')).toContainText('Best 1-minute challenge: 22 WPM · 99%');
+  await expect(page.locator('#progress-content')).toContainText('Best challenge results: Fastest 22 WPM · Highest 99% accuracy');
 });
 
 test('primitive or corrupt saved state cannot crash the app', async ({ page })=>{
