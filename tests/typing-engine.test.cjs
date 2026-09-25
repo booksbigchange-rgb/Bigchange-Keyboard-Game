@@ -32,5 +32,7 @@ test('input is ignored after finish',()=>{const s=new KQ.TypingSession('a');s.in
 test('progress advances continuously through mistakes',()=>{const s=new KQ.TypingSession('abc');s.input('x');eq(s.stats().progress,1/3);s.input('b');eq(s.stats().progress,2/3)});
 test('empty text reports safe zero progress',()=>{const s=new KQ.TypingSession('');eq(s.stats().progress,0);eq(s.input('x'),'ignored')});
 
+test('deterministic fuzz keeps engine invariants valid',()=>{let seed=123456789;const rnd=()=>{seed=(1103515245*seed+12345)>>>0;return seed/4294967296};const alphabet='asdf jkl;qwertyuiopzxcvbnm,.!?123ABC';for(let run=0;run<250;run++){let text='';const len=1+Math.floor(rnd()*40);for(let i=0;i<len;i++)text+=alphabet[Math.floor(rnd()*alphabet.length)];const s=new KQ.TypingSession(text);for(let step=0;step<80&&!s.done;step++){if(rnd()<0.12){s.backspace()}else{s.input(alphabet[Math.floor(rnd()*alphabet.length)])}const st=s.stats();assert.ok(s.pos>=0&&s.pos<=text.length);assert.ok(Number.isFinite(st.accuracy)&&st.accuracy>=0&&st.accuracy<=100);assert.ok(Number.isFinite(st.wpm)&&st.wpm>=0);assert.ok(st.progress>=0&&st.progress<=1);assert.ok(st.mistakes>=0);assert.ok(st.correct>=0&&st.correct<=s.pos);eq(s.states.length,text.length);eq(s.typedChars.length,text.length)}}});
+
 console.log(`\n${passed} passed · ${failed} failed`);
 if(failed) process.exit(1);
