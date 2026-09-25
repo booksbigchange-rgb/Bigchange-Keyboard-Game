@@ -1,7 +1,8 @@
+const BASE_URL=process.env.PLAYWRIGHT_BASE_URL||'http://127.0.0.1:4173';
 const { test, expect } = require('@playwright/test');
 
 async function createStudent(page,name='Test Student'){
-  await page.goto('/');
+  await page.goto(BASE_URL);
   await page.evaluate(()=>localStorage.clear());
   await page.reload();
   await expect(page.locator('#profile')).toBeVisible();
@@ -81,7 +82,7 @@ test('saved progress is deduplicated and stored results are bounded', async ({ p
       best:{wpm:22.4,accuracy:98.6}
     }));
   });
-  await page.goto('/');
+  await page.goto(BASE_URL);
   await expect(page.locator('#profile')).toBeHidden();
   await page.locator('[data-view="progress"]').click();
   await expect(page.locator('#progress-content')).toContainText('2 of 7 lessons completed');
