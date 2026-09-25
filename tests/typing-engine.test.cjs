@@ -37,6 +37,18 @@ test('extra inserted character does not cascade the rest of the sentence',()=>{
   assert.ok(s.stats(3000).accuracy<100)
 });
 
+test('top-row screenshot regression keeps later words aligned after early extras',()=>{
+  const s=new KQ.TypingSession('red tree quiet type power');
+  s.update('redb',1000);
+  s.update('redby',1100);
+  s.update('redbyree quiet type power',4000);
+  const st=s.stats(4000);
+  eq(s.done,true);
+  assert.ok(st.mistakes>=2);
+  assert.ok(st.correct>=20);
+  assert.ok(st.accuracy<100);
+});
+
 test('omitted character realigns when later characters match',()=>{
   const s=new KQ.TypingSession('red tree');
   s.update('redtree',1000);
