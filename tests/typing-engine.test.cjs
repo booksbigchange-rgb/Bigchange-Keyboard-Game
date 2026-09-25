@@ -6,35 +6,182 @@ let passed=0, failed=0;
 function test(name,fn){try{fn();console.log('✓',name);passed++}catch(err){console.error('✗',name,'-',err.message);failed++}}
 function eq(a,b){assert.equal(a,b)}
 
-test('correct key advances',()=>{const s=new KQ.TypingSession('ab');eq(s.input('a'),'correct');eq(s.pos,1)});
-test('wrong substitution records one mistake and advances',()=>{const s=new KQ.TypingSession('ab');eq(s.input('x'),'wrong');eq(s.pos,1);eq(s.states[0],KQ.WRONG);eq(s.stats().mistakes,1)});
-test('typing continues after a substitution',()=>{const s=new KQ.TypingSession('ab');s.input('x');eq(s.input('b'),'complete');eq(s.stats().mistakes,1)});
-test('single inserted character repairs without Backspace',()=>{const s=new KQ.TypingSession('a b');s.input('a');s.input('p');eq(s.input(' '),'corrected');eq(s.pos,2);eq(s.input('b'),'complete');eq(s.stats().mistakes,1)});
-test('two inserted characters repair without cascade',()=>{const s=new KQ.TypingSession('a bc');s.input('a');s.input('x');s.input('y');eq(s.input(' '),'corrected');eq(s.input('b'),'corrected');eq(s.input('c'),'complete');eq(s.stats().mistakes,2)});
-test('repair window does not jump through an intervening correct character',()=>{const s=new KQ.TypingSession('abcd');s.input('x');s.input('b');eq(s.input('a'),'wrong');eq(s.pos,3)});
-test('one skipped character resyncs ahead',()=>{const s=new KQ.TypingSession('a b');s.input('a');eq(s.input('b'),'complete');eq(s.states[1],KQ.WRONG);eq(s.states[2],KQ.CORRECT);eq(s.stats().mistakes,1)});
-test('multiple skipped characters resync within the window',()=>{const s=new KQ.TypingSession('abcde');s.input('a');eq(s.input('d'),'resynced');eq(s.pos,4);eq(s.stats().mistakes,2);eq(s.input('e'),'complete')});
-test('lookahead uses nearest matching target',()=>{const s=new KQ.TypingSession('abcb');s.input('a');eq(s.input('b'),'correct');eq(s.input('b'),'complete');eq(s.pos,4);eq(s.states[2],KQ.WRONG);eq(s.states[3],KQ.CORRECT);eq(s.stats().mistakes,1)});
-test('backspace revisits previous committed position',()=>{const s=new KQ.TypingSession('ab');s.input('x');eq(s.backspace(),true);eq(s.pos,0);eq(s.states[0],KQ.PENDING);eq(s.input('a'),'correct')});
-test('backspace cannot move before zero',()=>{const s=new KQ.TypingSession('a');eq(s.backspace(),false);eq(s.pos,0)});
-test('historical mistake remains after correction',()=>{const s=new KQ.TypingSession('ab');s.input('x');s.backspace();s.input('a');eq(s.stats().mistakes,1);eq(s.states[0],KQ.CORRECT)});
-test('accuracy counts historical corrections once',()=>{const s=new KQ.TypingSession('abcd');s.input('x');s.backspace();for(const ch of 'abcd')s.input(ch);eq(s.stats().accuracy,80)});
-test('accuracy stays bounded',()=>{const s=new KQ.TypingSession('a');s.input('x');const a=s.stats().accuracy;assert.ok(a>=0&&a<=100)});
-test('one mistake plus nine correct characters gives exactly 90 percent',()=>{const s=new KQ.TypingSession('abcdefghi');s.input('x');s.backspace();for(const ch of 'abcdefghi')s.input(ch);eq(s.stats().accuracy,90)});
-test('one mistake plus eight correct characters rounds below pass mark',()=>{const s=new KQ.TypingSession('abcdefgh');s.input('x');s.backspace();for(const ch of 'abcdefgh')s.input(ch);eq(s.stats().accuracy,89)});
-test('currentErrors counts unresolved wrong target positions',()=>{const s=new KQ.TypingSession('abcd');s.input('x');s.input('y');eq(s.stats().currentErrors,2);s.backspace();eq(s.stats().currentErrors,1)});
-test('wpm stays zero before minimum sample',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=4000;s.pos=10;s.states.fill(KQ.CORRECT);s.updateWpm();eq(s.wpm,0)});
-test('wpm uses correct characters and elapsed time',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.CORRECT);s.updateWpm();eq(s.wpm,2)});
-test('fast completed lesson still gets a final wpm',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.pos=10;s.states.fill(KQ.CORRECT);s.finish(4000);eq(s.done,true);eq(s.wpm,40)});
-test('wrong characters do not inflate wpm',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.WRONG);s.updateWpm();eq(s.wpm,0)});
-test('wpm freezes after finish',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.CORRECT);s.done=true;s.updateWpm();const first=s.stats().wpm;const second=s.stats().wpm;eq(first,2);eq(second,2)});
-test('finish is idempotent',()=>{const s=new KQ.TypingSession('ab');s.input('a');s.finish();const end=s.endTime;s.finish();eq(s.endTime,end);eq(s.done,true)});
-test('finish can freeze at an exact timer deadline',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.pos=10;s.states.fill(KQ.CORRECT);s.finish(61000);eq(s.endTime,61000);eq(s.stats().seconds,60);eq(s.stats().wpm,2)});
-test('input is ignored after finish',()=>{const s=new KQ.TypingSession('a');s.input('a');eq(s.input('x'),'ignored')});
-test('progress advances continuously through mistakes',()=>{const s=new KQ.TypingSession('abc');s.input('x');eq(s.stats().progress,1/3);s.input('b');eq(s.stats().progress,2/3)});
-test('empty text reports safe zero progress',()=>{const s=new KQ.TypingSession('');eq(s.stats().progress,0);eq(s.input('x'),'ignored')});
+test('empty input stays at the beginning',()=>{
+  const s=new KQ.TypingSession('abc');
+  const st=s.stats(0);
+  eq(st.targetProgress,0);eq(st.accuracy,100);eq(st.mistakes,0)
+});
 
-test('deterministic fuzz keeps engine invariants valid',()=>{let seed=123456789;const rnd=()=>{seed=(1103515245*seed+12345)>>>0;return seed/4294967296};const alphabet='asdf jkl;qwertyuiopzxcvbnm,.!?123ABC';for(let run=0;run<250;run++){let text='';const len=1+Math.floor(rnd()*40);for(let i=0;i<len;i++)text+=alphabet[Math.floor(rnd()*alphabet.length)];const s=new KQ.TypingSession(text);for(let step=0;step<80&&!s.done;step++){if(rnd()<0.12){s.backspace()}else{s.input(alphabet[Math.floor(rnd()*alphabet.length)])}const st=s.stats();assert.ok(s.pos>=0&&s.pos<=text.length);assert.ok(Number.isFinite(st.accuracy)&&st.accuracy>=0&&st.accuracy<=100);assert.ok(Number.isFinite(st.wpm)&&st.wpm>=0);assert.ok(st.progress>=0&&st.progress<=1);assert.ok(st.mistakes>=0);assert.ok(st.correct>=0&&st.correct<=s.pos);eq(s.states.length,text.length);eq(s.typedChars.length,text.length)}}});
+test('correct text advances naturally',()=>{
+  const s=new KQ.TypingSession('abc');
+  s.update('a',1000);eq(s.stats(1000).targetProgress,1);
+  s.update('ab',1500);eq(s.stats(1500).targetProgress,2);
+  eq(s.update('abc',2000),'complete');eq(s.done,true)
+});
+
+test('single substitution does not block later typing',()=>{
+  const s=new KQ.TypingSession('abc');
+  s.update('ax',1000);
+  eq(s.stats(1000).mistakes,1);
+  eq(s.update('axc',1500),'complete');
+  eq(s.stats(1500).targetProgress,3)
+});
+
+test('extra inserted character does not cascade the rest of the sentence',()=>{
+  const s=new KQ.TypingSession('red tree quiet');
+  s.update('redb',1000);
+  assert.ok(s.stats(1000).targetProgress<=4);
+  s.update('redb tree quiet',3000);
+  eq(s.done,true);
+  assert.ok(s.stats(3000).mistakes>=1);
+  assert.ok(s.stats(3000).accuracy<100)
+});
+
+test('omitted character realigns when later characters match',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('redtree',1000);
+  eq(s.done,true);
+  eq(s.stats(1000).targetProgress,8);
+  assert.ok(s.stats(1000).mistakes>=1)
+});
+
+test('Backspace correction is natural because the raw value is authoritative',()=>{
+  const s=new KQ.TypingSession('abc');
+  s.update('ax',1000);
+  const historical=s.stats(1000).mistakes;
+  s.update('a',1200);
+  s.update('ab',1400);
+  eq(s.stats(1400).targetProgress,2);
+  eq(s.stats(1400).mistakes,historical);
+  eq(s.update('abc',1600),'complete')
+});
+
+test('replacing a same-length wrong value can recover alignment',()=>{
+  const s=new KQ.TypingSession('abc');
+  s.update('ax',1000);
+  s.update('ab',1200);
+  eq(s.stats(1200).targetProgress,2);
+  assert.ok(s.stats(1200).currentErrors===0)
+});
+
+test('typed state reports wrong inserted characters',()=>{
+  const a=KQ.alignText('abc','axbc');
+  assert.ok(a.typedStates.includes(KQ.WRONG));
+  eq(a.progress,3)
+});
+
+test('target state reports omitted characters',()=>{
+  const a=KQ.alignText('abc','ac');
+  assert.ok(a.targetStates.includes(KQ.WRONG));
+  eq(a.progress,3)
+});
+
+test('repeated letters align without throwing or jumping outside target',()=>{
+  const a=KQ.alignText('aaaa bbbb','aaax bbbb');
+  assert.ok(a.progress>=0&&a.progress<=9);
+  assert.ok(a.errors>=1)
+});
+
+test('lesson can finish with a wrong final substitution',()=>{
+  const s=new KQ.TypingSession('abc');
+  eq(s.update('abx',2000),'complete');
+  eq(s.done,true);
+  eq(s.stats(2000).mistakes,1)
+});
+
+test('short input cannot finish a longer target just through deletions',()=>{
+  const s=new KQ.TypingSession('abcdefghij');
+  s.update('abc',1000);
+  eq(s.done,false);
+  assert.ok(s.stats(1000).targetProgress<10)
+});
+
+test('mistake count never decreases after a Backspace correction',()=>{
+  const s=new KQ.TypingSession('hello');
+  s.update('hez',1000);
+  const before=s.stats(1000).mistakes;
+  s.update('he',1200);
+  assert.ok(s.stats(1200).mistakes>=before)
+});
+
+test('accuracy is always bounded',()=>{
+  const s=new KQ.TypingSession('abcdef');
+  for(const value of ['x','xy','xyz','xyza','xyzab','xyzabc']){
+    if(!s.done)s.update(value,1000+value.length*100)
+    const a=s.stats(2000).accuracy;
+    assert.ok(Number.isFinite(a)&&a>=0&&a<=100)
+  }
+});
+
+test('WPM uses aligned correct characters, not raw typed length',()=>{
+  const s=new KQ.TypingSession('abcdefghij');
+  s.startTime=1000;
+  s.value='abcdefghij';
+  s.lastAlignment=KQ.alignText(s.text,s.value);
+  s.finish(61000);
+  eq(s.stats(61000).wpm,2)
+});
+
+test('wrong inserted text does not inflate WPM',()=>{
+  const s=new KQ.TypingSession('abcdefghij');
+  s.startTime=1000;
+  s.value='xxxxxxxxxx';
+  s.lastAlignment=KQ.alignText(s.text,s.value);
+  s.finish(61000);
+  assert.ok(s.stats(61000).wpm<=2)
+});
+
+test('forced challenge finish freezes time',()=>{
+  const s=new KQ.TypingSession('abcdefghijklmnopqrstuvwxyz');
+  s.update('abcdefghij',1000);
+  s.finish(61000);
+  eq(s.stats(999999).seconds,60);
+  const wpm=s.stats(999999).wpm;
+  eq(s.stats(1999999).wpm,wpm)
+});
+
+test('input after finish is ignored',()=>{
+  const s=new KQ.TypingSession('a');
+  s.update('a',1000);
+  eq(s.update('ab',2000),'ignored')
+});
+
+test('alignment handles spaces punctuation capitals and numbers',()=>{
+  for(const [target,typed] of [
+    ['Hello, student!','Hello, student!'],
+    ['2026 123','2026 123'],
+    ['Big Change','Big Change']
+  ]){
+    const a=KQ.alignText(target,typed);
+    eq(a.progress,target.length);eq(a.errors,0);eq(a.correct,target.length)
+  }
+});
+
+test('deterministic fuzz keeps alignment and session invariants valid',()=>{
+  let seed=246813579;
+  const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296};
+  const chars='asdf jkl;qwertyuiopzxcvbnm,.!?123ABC';
+  for(let run=0;run<200;run++){
+    let target='';
+    const n=5+Math.floor(rnd()*45);
+    for(let i=0;i<n;i++)target+=chars[Math.floor(rnd()*chars.length)];
+    const s=new KQ.TypingSession(target);
+    let value='';
+    for(let step=0;step<70&&!s.done;step++){
+      const r=rnd();
+      if(r<0.15&&value.length)value=value.slice(0,-1);
+      else value+=chars[Math.floor(rnd()*chars.length)];
+      s.update(value,1000+step*100);
+      const st=s.stats(1000+step*100);
+      assert.ok(st.targetProgress>=0&&st.targetProgress<=target.length);
+      assert.ok(st.progress>=0&&st.progress<=1);
+      assert.ok(st.accuracy>=0&&st.accuracy<=100);
+      assert.ok(st.mistakes>=0);
+      eq(st.targetStates.length,target.length);
+      eq(st.typedStates.length,value.length)
+    }
+  }
+});
 
 console.log(`\n${passed} passed · ${failed} failed`);
 if(failed) process.exit(1);
