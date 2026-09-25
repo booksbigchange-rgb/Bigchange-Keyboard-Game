@@ -81,6 +81,15 @@ test('typing continues after a mistake and a single insertion realigns', async (
   await expect(page.locator('#typed-display')).toBeEditable();
 });
 
+test('Top Row keeps accepting the screenshot mistake sequence without freezing', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  await page.keyboard.type('redbyree quiet type power');
+  await expect(page.locator('#typed-display')).toHaveValue('redbyree quiet type power');
+  await expect(page.locator('#message')).toContainText(/Try again|Practice complete/);
+  expect(Number(await page.locator('#mistakes').textContent())).toBeGreaterThanOrEqual(2);
+});
+
 test('multiple accidental inserted characters recover instead of cascading', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
