@@ -42,6 +42,19 @@ test('every lesson opens a fresh typing session with non-empty target text', asy
   }
 });
 
+test('all seven lessons accept their full target text including capitals numbers and punctuation', async ({ page })=>{
+  await createStudent(page);
+  for(let i=0;i<7;i++){
+    await page.locator('[data-view="learn"]').click();
+    await page.locator(`[data-lesson="${i}"]`).click();
+    const target=await targetText(page);
+    await page.keyboard.type(target);
+    await expect(page.locator('#message')).toContainText('Practice complete');
+  }
+  await page.locator('[data-view="progress"]').click();
+  await expect(page.locator('#progress-content')).toContainText('7 of 7 lessons completed');
+});
+
 test('free Practice stays separate from Learn lesson completion', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-view="practice"]').click();
