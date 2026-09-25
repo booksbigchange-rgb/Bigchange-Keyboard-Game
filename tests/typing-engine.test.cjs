@@ -14,7 +14,7 @@ test('two inserted characters repair without cascade',()=>{const s=new KQ.Typing
 test('repair window does not jump through an intervening correct character',()=>{const s=new KQ.TypingSession('abcd');s.input('x');s.input('b');eq(s.input('a'),'wrong');eq(s.pos,3)});
 test('one skipped character resyncs ahead',()=>{const s=new KQ.TypingSession('a b');s.input('a');eq(s.input('b'),'complete');eq(s.states[1],KQ.WRONG);eq(s.states[2],KQ.CORRECT);eq(s.stats().mistakes,1)});
 test('multiple skipped characters resync within the window',()=>{const s=new KQ.TypingSession('abcde');s.input('a');eq(s.input('d'),'resynced');eq(s.pos,4);eq(s.stats().mistakes,2);eq(s.input('e'),'complete')});
-test('lookahead uses nearest matching target',()=>{const s=new KQ.TypingSession('abcb');s.input('a');eq(s.input('b'),'correct');eq(s.input('b'),'resynced');eq(s.pos,4);eq(s.stats().mistakes,1)});
+test('lookahead uses nearest matching target',()=>{const s=new KQ.TypingSession('abcb');s.input('a');eq(s.input('b'),'correct');eq(s.input('b'),'complete');eq(s.pos,4);eq(s.states[2],KQ.WRONG);eq(s.states[3],KQ.CORRECT);eq(s.stats().mistakes,1)});
 test('backspace revisits previous committed position',()=>{const s=new KQ.TypingSession('ab');s.input('x');eq(s.backspace(),true);eq(s.pos,0);eq(s.states[0],KQ.PENDING);eq(s.input('a'),'correct')});
 test('backspace cannot move before zero',()=>{const s=new KQ.TypingSession('a');eq(s.backspace(),false);eq(s.pos,0)});
 test('historical mistake remains after correction',()=>{const s=new KQ.TypingSession('ab');s.input('x');s.backspace();s.input('a');eq(s.stats().mistakes,1);eq(s.states[0],KQ.CORRECT)});
