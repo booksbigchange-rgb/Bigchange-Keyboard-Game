@@ -39,7 +39,7 @@ test('wrong key locks once and requires Backspace before continuing', async ({ p
 test('practice below 90 percent retries and clean retry can complete', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
-  const target=await page.locator('#target').textContent();
+  const target=(await page.locator('#target').textContent()).replace(/\u00a0/g,' ');
 
   for(let i=0;i<5;i++){
     await page.keyboard.press('x');
