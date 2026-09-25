@@ -19,21 +19,17 @@ test('profile gates the classroom app until a student starts', async ({ page })=
   await expect(page.locator('#lesson-list [data-lesson]')).toHaveCount(7);
 });
 
-test('wrong key locks once and requires Backspace before continuing', async ({ page })=>{
+test('typing continues after a mistake and alignment recovers', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
   await page.keyboard.type('asdf');
   await page.keyboard.press('p');
   await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('.typed-wrong')).toHaveText('p');
-  await page.keyboard.type('xyz');
-  await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('.typed-wrong')).toHaveText('p');
-  await page.keyboard.press('Backspace');
-  await expect(page.locator('.typed-wrong')).toHaveCount(0);
+  await expect(page.locator('.typed-wrong')).toContainText('p');
   await page.keyboard.press('Space');
-  await page.keyboard.press('j');
-  await expect(page.locator('.reference-current')).toHaveText('k');
+  await page.keyboard.type('jkl;');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('.reference-current')).toHaveText(' ');
 });
 
 test('practice below 90 percent retries and clean retry can complete', async ({ page })=>{
@@ -67,6 +63,9 @@ test('challenge waits for first key before countdown starts', async ({ page })=>
   await page.waitForTimeout(1200);
   await expect(page.locator('#timer-seconds')).toHaveText('60');
   await page.keyboard.press('P');
+  await expect(page.locator('#typed-display')).toContainText('P');
+  await page.keyboard.type('ractice');
+  await expect(page.locator('#typed-display')).toContainText('Practice');
   await page.waitForTimeout(1200);
   const seconds=Number(await page.locator('#timer-seconds').textContent());
   expect(seconds).toBeLessThan(60);
