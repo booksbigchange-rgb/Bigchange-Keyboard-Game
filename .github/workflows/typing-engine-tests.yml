@@ -1,4 +1,4 @@
-name: Typing engine tests
+name: Classroom core checks
 
 on:
   push:
@@ -14,5 +14,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check js/engine.js
+          node --check js/bigchange.js
+          node --check js/games.js
       - name: Run typing engine regression tests
         run: node tests/typing-engine.test.cjs
+      - name: Run application DOM smoke checks
+        run: node tests/app-smoke.test.cjs
