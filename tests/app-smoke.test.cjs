@@ -11,7 +11,7 @@ const requiredIds=[
   'typed-display','message','wpm','accuracy','mistakes','start','challenge',
   'challenge-start','best-wpm','best-accuracy','games','game-play','game-title',
   'game-instructions','game-board','game-score','game-streak','game-message',
-  'game-restart','progress','progress-content'
+  'game-restart','progress','progress-content','new-student'
 ];
 
 for(const id of requiredIds){
