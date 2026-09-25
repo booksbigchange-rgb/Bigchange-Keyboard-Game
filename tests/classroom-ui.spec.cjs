@@ -21,8 +21,8 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V2', async ({ page })=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v2-20260925-2');
-  await expect(page.locator('footer')).toContainText('Build core-v2-20260925-2');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v2-20260925-3');
+  await expect(page.locator('footer')).toContainText('Build core-v2-20260925-3');
 });
 
 test('editing in the middle of the textarea stays natural', async ({ page })=>{
@@ -87,30 +87,41 @@ test('free Practice stays separate from Learn lesson completion', async ({ page 
   await expect(page.locator('#lesson-list em')).toHaveCount(0);
 });
 
-test('typing continues after a mistake and a single insertion realigns', async ({ page })=>{
+test('typing continues after a mistake with immediate positional feedback', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
   await page.keyboard.type('asdf');
   await page.keyboard.type('p');
   await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#target .reference-wrong')).toHaveCount(1);
   await expect(page.locator('#typed-display')).toHaveValue('asdfp');
   await page.keyboard.type(' ');
+  await expect(page.locator('#mistakes')).toHaveText('2');
+  await expect(page.locator('#target .reference-wrong')).toHaveCount(2);
   await page.keyboard.type('jkl;');
   await expect(page.locator('#typed-display')).toHaveValue('asdfp jkl;');
-  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#mistakes')).toHaveText('6');
   await expect(page.locator('#typed-display')).toBeEditable();
 });
 
-test('Top Row keeps accepting the screenshot mistake sequence without freezing', async ({ page })=>{
+test('Top Row reported sequence never skips or reveals mistakes late', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="1"]').click();
-  await page.keyboard.type('redbyree quiet type power');
+  await page.keyboard.type('red');
+  await expect(page.locator('#target .reference-correct')).toHaveCount(3);
+  await page.keyboard.type('b');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#target .reference-wrong')).toHaveCount(1);
+  await page.keyboard.type('y');
+  await expect(page.locator('#mistakes')).toHaveText('2');
+  await expect(page.locator('#target .reference-wrong')).toHaveCount(2);
+  await page.keyboard.type('ree quiet type power');
   await expect(page.locator('#typed-display')).toHaveValue('redbyree quiet type power');
   await expect(page.locator('#message')).toContainText(/Try again|Practice complete/);
-  expect(Number(await page.locator('#mistakes').textContent())).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('#mistakes')).toHaveText('2');
 });
 
-test('multiple accidental inserted characters recover instead of cascading', async ({ page })=>{
+test('multiple accidental inserted characters never freeze the textarea', async ({ page })=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
   await page.keyboard.type('asdf');
