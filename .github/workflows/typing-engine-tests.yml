@@ -19,6 +19,9 @@ jobs:
           node --check js/engine.js
           node --check js/bigchange.js
           node --check js/games.js
+          node --check tests/typing-engine.test.cjs
+          node --check tests/app-smoke.test.cjs
+          node --check tests/classroom-ui.spec.cjs
       - name: Run typing engine regression tests
         run: node tests/typing-engine.test.cjs
       - name: Run application DOM smoke checks
