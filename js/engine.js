@@ -84,6 +84,6 @@ KQ.TypingSession=class{
   elapsedMs(){return this.startTime===null?0:(this.endTime??performance.now())-this.startTime}
   correctCount(){let n=0;for(let i=0;i<this.pos;i++)if(this.states[i]===KQ.CORRECT)n++;return n}
   currentErrors(){let n=0;for(let i=0;i<this.pos;i++)if(this.states[i]===KQ.WRONG)n++;return n}
-  updateWpm(){const ms=this.elapsedMs(),correct=this.correctCount();if(!this.startTime||correct<10||ms<5000){this.wpm=0;return}this.wpm=Math.max(0,Math.round((correct/5)/(ms/60000)))}
+  updateWpm(){const ms=this.elapsedMs(),correct=this.correctCount();if(!this.startTime||correct<5||ms<1000){this.wpm=0;return}if(!this.done&&(correct<10||ms<5000)){this.wpm=0;return}this.wpm=Math.max(0,Math.round((correct/5)/(ms/60000)))}
   stats(){const ms=this.elapsedMs(),correct=this.correctCount(),attempts=correct+this.totalErrors;return{wpm:this.wpm,accuracy:attempts?Math.max(0,Math.round((correct/attempts)*100)):100,mistakes:this.totalErrors,currentErrors:this.currentErrors(),keystrokes:this.keystrokes,typed:this.pos,correct,seconds:Math.round(ms/1000),done:this.done,progress:this.text.length?this.pos/this.text.length:0,expected:this.expected}}
 };
