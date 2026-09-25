@@ -25,7 +25,12 @@ assert.deepEqual([...new Set(duplicates)],[],'duplicate HTML ids found');
 for(const file of ['css/style.css','js/engine.js','js/bigchange.js','js/games.js']){
   assert.ok(fs.existsSync(path.join(root,file)),`missing local asset ${file}`);
   assert.ok(html.includes(file),`index.html does not reference ${file}`);
+  assert.match(html,new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g,'\\for(const file of ['css/style.css','js/engine.js','js/bigchange.js','js/games.js']){
+  assert.ok(fs.existsSync(path.join(root,file)),`missing local asset ${file}`);
+  assert.ok(html.includes(file),`index.html does not reference ${file}`);
+}')+'\\?v=core-v2-20260925-2'),`asset ${file} is missing the V2 cache-busting version`);
 }
+assert.match(html,/meta name="bigchange-build" content="core-v2-20260925-2"/,'missing visible V2 build marker');
 
 for(const view of ['learn','practice','challenge','games','progress']){
   assert.match(html,new RegExp(`data-view=["']${view}["']`),`missing navigation button for ${view}`);
