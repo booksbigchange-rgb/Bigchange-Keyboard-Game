@@ -7,7 +7,7 @@ KQ.TypingSession=class{
     this.keystrokes=0;this.totalErrors=0;this.startTime=null;this.endTime=null;this.done=false;this.wpm=0;
   }
   get expected(){return this.done?null:this.text[this.pos]}
-  get hasActiveError(){return !this.done&&this.states[this.pos]===KQ.WRONG}
+  get hasActiveError(){return this.states[this.pos]===KQ.WRONG}
   input(ch){
     if(this.done||this.pos>=this.text.length)return'ignored';
     if(this.hasActiveError)return'locked';
