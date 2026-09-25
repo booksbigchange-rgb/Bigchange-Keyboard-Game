@@ -145,6 +145,24 @@ test('leaving a running challenge stops its timer', async ({ page })=>{
   expect(after).toBe(before);
 });
 
+test('challenge finalization freezes the timer and keeps independent best metrics', async ({ page })=>{
+  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({name:'Challenger',completed:[],best:{wpm:99,accuracy:50}}))));
+  await page.goto(BASE_URL);
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('Practice');
+  await page.evaluate(()=>finishChallenge('time'));
+  await expect(page.locator('#message')).toContainText('Time!');
+  const frozen=await page.locator('#timer-seconds').textContent();
+  await page.waitForTimeout(700);
+  await expect(page.locator('#timer-seconds')).toHaveText(frozen);
+  await page.locator('[data-view="challenge"]').click();
+  await expect(page.locator('#best-wpm')).toHaveText('99');
+  await expect(page.locator('#best-accuracy')).toHaveText('100%');
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')));
+  expect(saved.best).toEqual({wpm:99,accuracy:100});
+});
+
 test('saved progress is deduplicated and stored results are bounded', async ({ page })=>{
   await page.addInitScript(()=>{
     localStorage.setItem('bc-keyboard',JSON.stringify({
@@ -202,6 +220,16 @@ test('Bubble Pop and Rocket Race accept their displayed keys', async ({ page })=
   key=(await page.locator('#game-board strong').textContent()).trim();
   await page.keyboard.type(key);
   await expect(page.locator('#game-score')).toHaveText('1');
+});
+
+test('completed lesson survives a page reload', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const target=await targetText(page);
+  await page.keyboard.type(target);
+  await expect(page.locator('#message')).toContainText('Practice complete');
+  await page.reload();
+  await expect(page.locator('#lesson-list [data-lesson="0"] em')).toContainText('Complete');
 });
 
 test('new student reset clears saved classroom progress only after confirmation', async ({ page })=>{
