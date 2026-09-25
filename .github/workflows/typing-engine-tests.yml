@@ -23,3 +23,13 @@ jobs:
         run: node tests/typing-engine.test.cjs
       - name: Run application DOM smoke checks
         run: node tests/app-smoke.test.cjs
+      - name: Install browser test runner
+        run: npm install --no-save @playwright/test@1.55.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Serve classroom app
+        run: python3 -m http.server 4173 >/tmp/bigchange-http.log 2>&1 &
+      - name: Run classroom browser acceptance tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/classroom-ui.spec.cjs --project=chromium
