@@ -243,6 +243,19 @@ test('new student reset clears saved classroom progress only after confirmation'
   expect(await page.evaluate(()=>localStorage.getItem('bc-keyboard'))).toBeNull();
 });
 
+test('Rocket Race reaches a clean finish after 20 correct keys', async ({ page })=>{
+  await createStudent(page);
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="race"]').click();
+  for(let i=1;i<=20;i++){
+    const key=(await page.locator('#game-board strong').textContent()).trim();
+    await page.keyboard.type(key);
+    await expect(page.locator('#game-score')).toHaveText(String(i));
+  }
+  await expect(page.locator('#game-message')).toContainText('Finish!');
+  await expect(page.locator('#game-board')).toContainText('Race complete!');
+});
+
 test('mobile-width page does not create horizontal overflow', async ({ page })=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
