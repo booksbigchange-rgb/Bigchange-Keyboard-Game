@@ -28,6 +28,7 @@ test('wpm uses correct characters and elapsed time',()=>{const s=new KQ.TypingSe
 test('wrong characters do not inflate wpm',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.WRONG);s.updateWpm();eq(s.wpm,0)});
 test('wpm freezes after finish',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.endTime=61000;s.pos=10;s.states.fill(KQ.CORRECT);s.done=true;s.updateWpm();const first=s.stats().wpm;const second=s.stats().wpm;eq(first,2);eq(second,2)});
 test('finish is idempotent',()=>{const s=new KQ.TypingSession('ab');s.input('a');s.finish();const end=s.endTime;s.finish();eq(s.endTime,end);eq(s.done,true)});
+test('finish can freeze at an exact timer deadline',()=>{const s=new KQ.TypingSession('abcdefghij');s.startTime=1000;s.pos=10;s.states.fill(KQ.CORRECT);s.finish(61000);eq(s.endTime,61000);eq(s.stats().seconds,60);eq(s.stats().wpm,2)});
 test('input is ignored after finish',()=>{const s=new KQ.TypingSession('a');s.input('a');eq(s.input('x'),'ignored')});
 test('progress advances continuously through mistakes',()=>{const s=new KQ.TypingSession('abc');s.input('x');eq(s.stats().progress,1/3);s.input('b');eq(s.stats().progress,2/3)});
 test('empty text reports safe zero progress',()=>{const s=new KQ.TypingSession('');eq(s.stats().progress,0);eq(s.input('x'),'ignored')});
