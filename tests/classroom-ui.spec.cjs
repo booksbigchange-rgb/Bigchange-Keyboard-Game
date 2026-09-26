@@ -81,7 +81,7 @@ test('wrong character never locks the current word',async({page})=>{
   await expect(box).toBeEditable();
 });
 
-test('Backspace corrects naturally and historical error remains counted',async({page})=>{
+test('Backspace correction clears visible mistake while accuracy retains attempt',async({page})=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
   const box=page.locator('#typed-display');
@@ -90,8 +90,26 @@ test('Backspace corrects naturally and historical error remains counted',async({
   await page.keyboard.press('Backspace');
   await page.keyboard.type('d');
   await expect(box).toHaveValue('asd');
-  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).not.toHaveText('100%');
   await expect(box).toBeEditable();
+});
+
+test('reported Home Row screenshot state has one visible extra-letter mistake',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="practice"]').click();
+  const box=page.locator('#typed-display');
+
+  await page.keyboard.type('asdf');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .word-complete')).toHaveCount(1);
+  await expect(page.locator('#target .word-error')).toHaveCount(0);
+
+  await page.keyboard.type('jkl;i');
+  await expect(box).toHaveValue('jkl;i');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#accuracy')).toHaveText('89%');
+  await expect(page.locator('#target .typed-extra')).toHaveText('i');
 });
 
 test('mid-word editing uses the real textarea without jumping',async({page})=>{
