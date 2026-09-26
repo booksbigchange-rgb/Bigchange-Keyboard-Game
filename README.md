@@ -14,7 +14,7 @@ A classroom-friendly typing game for BigChange students.
 
 GitHub Pages continues to publish from `typing-core-v2` / repository root. V3 changes are tested on `typing-core-v3` first, then promoted into that live-preview branch.
 
-Current expected live build marker: `core-v3-20260926-2`.
+Current expected live build marker: `core-v3-20260926-3`.
 
 ## Typing Core V3
 
