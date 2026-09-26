@@ -32,6 +32,12 @@ test('deployed build marker identifies Typing Core V3',async({page})=>{
   await expect(page.locator('footer')).toContainText('Build core-v3-20260926-2');
 });
 
+test('manual V3 engine page also passes in Chromium',async({page})=>{
+  await page.goto(BASE_URL+'/tests/typing-engine.html');
+  await expect(page).toHaveTitle(/PASS — BigChange V3 Typing Engine Tests/);
+  await expect(page.locator('#out')).toContainText('8 passed · 0 failed');
+});
+
 test('profile gates the classroom app',async({page})=>{
   await fresh(page);
   await expect(page.locator('#profile')).toBeVisible();
