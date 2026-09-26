@@ -2,7 +2,7 @@
 
 ## Source of truth
 - Active upgrade branch: `typing-core-v3`
-- Expected V3 build marker: `core-v3-20260926-2`
+- Expected V3 build marker: `core-v3-20260926-3`
 - `typing-core-v2` is the GitHub Pages live-preview branch carrying tested V3 code.
 - `typing-core-v2-frozen` preserves the pre-V3 fallback.
 - V3 release path: Draft PR #4 -> `main`
