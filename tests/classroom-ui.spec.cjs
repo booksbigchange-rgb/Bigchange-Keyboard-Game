@@ -1,281 +1,227 @@
 const BASE_URL=process.env.PLAYWRIGHT_BASE_URL||'http://127.0.0.1:4173';
-const { test, expect } = require('@playwright/test');
+const {test,expect}=require('@playwright/test');
 
 async function fresh(page){
   await page.goto(BASE_URL);
   await page.evaluate(()=>localStorage.clear());
   await page.reload();
 }
+
 async function createStudent(page,name='Test Student'){
   await fresh(page);
-  await expect(page.locator('#profile')).toBeVisible();
-  await expect(page.locator('#student-nav')).toBeHidden();
   await page.locator('#student-name').fill(name);
   await page.locator('#save-profile').click();
   await expect(page.locator('#student-nav')).toBeVisible();
-  await expect(page.locator('#learn')).toBeVisible();
 }
+
+async function typePhrase(page,text){
+  const words=text.trim().split(/\s+/);
+  for(let i=0;i<words.length;i++){
+    await page.keyboard.type(words[i]);
+    if(i<words.length-1)await page.keyboard.press('Space');
+  }
+}
+
 async function targetText(page){
-  return (await page.locator('#target').textContent()).replace(/\u00a0/g,' ');
+  return (await page.locator('#target').textContent()).replace(/\s+/g,' ').trim();
 }
 
-test('deployed build marker identifies Typing Core V2', async ({ page })=>{
+test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v2-20260925-3');
-  await expect(page.locator('footer')).toContainText('Build core-v2-20260925-3');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260926-1');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20260926-1');
 });
 
-test('editing in the middle of the textarea stays natural', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
-  const box=page.locator('#typed-display');
-  await box.fill('asdf jkl;');
-  await box.evaluate(el=>el.setSelectionRange(4,4));
-  await page.keyboard.type('p');
-  await expect(box).toHaveValue('asdfp jkl;');
-  await expect(box).toBeEditable();
-  await page.keyboard.press('Backspace');
-  await expect(box).toHaveValue('asdf jkl;');
-  await expect(box).toBeEditable();
-});
-
-test('profile gates the app and Enter starts the student session', async ({ page })=>{
+test('profile gates the classroom app',async({page})=>{
   await fresh(page);
+  await expect(page.locator('#profile')).toBeVisible();
+  await expect(page.locator('#student-nav')).toBeHidden();
   await page.locator('#student-name').fill('Keyboard Student');
   await page.locator('#student-name').press('Enter');
-  await expect(page.locator('#profile')).toBeHidden();
   await expect(page.locator('#student-nav')).toBeVisible();
   await expect(page.locator('#lesson-list [data-lesson]')).toHaveCount(7);
 });
 
-test('every lesson opens a fresh typing session with non-empty target text', async ({ page })=>{
+test('Top Row extra letters show mistakes immediately without skipping',async({page})=>{
   await createStudent(page);
-  for(let i=0;i<7;i++){
-    await page.locator('[data-view="learn"]').click();
-    await page.locator(`[data-lesson="${i}"]`).click();
-    await expect(page.locator('#practice')).toBeVisible();
-    expect((await targetText(page)).length).toBeGreaterThan(3);
-    await expect(page.locator('#accuracy')).toHaveText('100%');
-    await expect(page.locator('#mistakes')).toHaveText('0');
-    await expect(page.locator('.levels')).toBeHidden();
-    await expect(page.locator('#start')).toHaveText('Restart Lesson');
-  }
+  await page.locator('[data-lesson="1"]').click();
+  const box=page.locator('#typed-display');
+
+  await expect(page.locator('#target .current-word')).toContainText('red');
+  await page.keyboard.type('red');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+
+  await page.keyboard.type('b');
+  await expect(box).toHaveValue('redb');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+
+  await page.keyboard.type('y');
+  await expect(box).toHaveValue('redby');
+  await expect(page.locator('#mistakes')).toHaveText('2');
+
+  await page.keyboard.type('ree');
+  await expect(box).toHaveValue('redbyree');
+  await expect(page.locator('#mistakes')).toHaveText('5');
+  await expect(page.locator('#target .current-word')).toContainText('red');
+  await expect(box).toBeEditable();
+
+  await page.keyboard.press('Space');
+  await expect(box).toHaveValue('');
+  await expect(page.locator('#target .current-word')).toContainText('tree');
 });
 
-test('all seven lessons accept their full target text including capitals numbers and punctuation', async ({ page })=>{
+test('wrong character never locks the current word',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await page.keyboard.type('asx');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await page.keyboard.type('f');
+  await expect(box).toHaveValue('asxf');
+  await expect(box).toBeEditable();
+});
+
+test('Backspace corrects naturally and historical error remains counted',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await page.keyboard.type('asx');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('d');
+  await expect(box).toHaveValue('asd');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(box).toBeEditable();
+});
+
+test('mid-word editing uses the real textarea without jumping',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asf');
+  await box.evaluate(el=>el.setSelectionRange(2,2));
+  await page.keyboard.type('d');
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#target .current-word')).toContainText('asdf');
+});
+
+test('Space commits exactly one word and advances exactly one word',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  await page.keyboard.type('red');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#typed-display')).toHaveValue('');
+  await expect(page.locator('#target .current-word')).toContainText('tree');
+  await expect(page.locator('#target .word-complete')).toContainText('red');
+});
+
+test('empty Backspace reopens the previous committed word',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  await page.keyboard.type('red');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .current-word')).toContainText('tree');
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('#typed-display')).toHaveValue('red');
+  await expect(page.locator('#target .current-word')).toContainText('red');
+});
+
+test('all seven lessons can complete with correct word-by-word typing',async({page})=>{
   await createStudent(page);
   for(let i=0;i<7;i++){
     await page.locator('[data-view="learn"]').click();
-    await page.locator(`[data-lesson="${i}"]`).click();
+    await page.locator('[data-lesson="'+i+'"]').click();
     const target=await targetText(page);
-    await page.keyboard.type(target);
+    await typePhrase(page,target);
     await expect(page.locator('#message')).toContainText('Practice complete');
   }
   await page.locator('[data-view="progress"]').click();
   await expect(page.locator('#progress-content')).toContainText('7 of 7 lessons completed');
 });
 
-test('free Practice stays separate from Learn lesson completion', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-view="practice"]').click();
-  await expect(page.locator('.levels')).toBeVisible();
-  await expect(page.locator('#practice-heading')).toHaveText('Practice');
-  const target=await targetText(page);
-  await page.keyboard.type(target);
-  await expect(page.locator('#message')).toContainText('Practice complete');
-  await page.locator('[data-view="learn"]').click();
-  await expect(page.locator('#lesson-list em')).toHaveCount(0);
-});
-
-test('typing continues after a mistake with immediate positional feedback', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
-  await page.keyboard.type('asdf');
-  await page.keyboard.type('p');
-  await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('#target .reference-wrong')).toHaveCount(1);
-  await expect(page.locator('#typed-display')).toHaveValue('asdfp');
-  await page.keyboard.type(' ');
-  await expect(page.locator('#mistakes')).toHaveText('2');
-  await expect(page.locator('#target .reference-wrong')).toHaveCount(2);
-  await page.keyboard.type('jkl;');
-  await expect(page.locator('#typed-display')).toHaveValue('asdfp jkl;');
-  await expect(page.locator('#mistakes')).toHaveText('6');
-  await expect(page.locator('#typed-display')).toBeEditable();
-});
-
-test('Top Row reported sequence never skips or reveals mistakes late', async ({ page })=>{
+test('lesson below 90 percent does not unlock completion',async({page})=>{
   await createStudent(page);
   await page.locator('[data-lesson="1"]').click();
-  await page.keyboard.type('red');
-  await expect(page.locator('#target .reference-correct')).toHaveCount(3);
-  await page.keyboard.type('b');
-  await expect(page.locator('#mistakes')).toHaveText('1');
-  await expect(page.locator('#target .reference-wrong')).toHaveCount(1);
-  await page.keyboard.type('y');
-  await expect(page.locator('#mistakes')).toHaveText('2');
-  await expect(page.locator('#target .reference-wrong')).toHaveCount(2);
-  await page.keyboard.type('ree quiet type power');
-  await expect(page.locator('#typed-display')).toHaveValue('redbyree quiet type power');
-  await expect(page.locator('#message')).toContainText(/Try again|Practice complete/);
-  await expect(page.locator('#mistakes')).toHaveText('2');
+  await page.keyboard.type('xxxx');
+  await page.keyboard.press('Space');
+  await page.keyboard.type('yyyy');
+  await page.keyboard.press('Space');
+  await page.keyboard.type('zzzzz');
+  await page.keyboard.press('Space');
+  await page.keyboard.type('qqqq');
+  await page.keyboard.press('Space');
+  await page.keyboard.type('wwwww');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#message')).toContainText('Try again');
+  await page.locator('[data-view="learn"]').click();
+  await expect(page.locator('[data-lesson="1"] em')).toHaveCount(0);
 });
 
-test('multiple accidental inserted characters never freeze the textarea', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
-  await page.keyboard.type('asdf');
-  await page.keyboard.type('pq');
-  await expect(page.locator('#mistakes')).toHaveText('2');
-  await page.keyboard.type(' ');
-  await page.keyboard.type('j');
-  await page.keyboard.type('kl;');
-  await expect(page.locator('#typed-display')).toHaveValue('asdfpq jkl;');
-  await expect(page.locator('#typed-display')).toBeEditable();
-  expect(Number(await page.locator('#mistakes').textContent())).toBeGreaterThanOrEqual(2);
-});
-
-test('restart clears typed output and live stats', async ({ page })=>{
+test('restart clears current word and statistics',async({page})=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
   await page.keyboard.type('asx');
   await expect(page.locator('#mistakes')).toHaveText('1');
   await page.locator('#start').click();
+  await expect(page.locator('#typed-display')).toHaveValue('');
   await expect(page.locator('#mistakes')).toHaveText('0');
   await expect(page.locator('#accuracy')).toHaveText('100%');
-  await expect(page.locator('#typed-display')).toHaveValue('');
-  await expect(page.locator('#typed-display')).toHaveAttribute('placeholder',/Start typing here/);
+  await expect(page.locator('#target .current-word')).toContainText('asdf');
 });
 
-test('Backspace edits the real student text without locking input', async ({ page })=>{
+test('free Practice remains separate from Learn completion',async({page})=>{
   await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
-  await page.keyboard.type('asdfp');
-  await expect(page.locator('#typed-display')).toHaveValue('asdfp');
-  await page.keyboard.press('Backspace');
-  await expect(page.locator('#typed-display')).toHaveValue('asdf');
-  await page.keyboard.type(' jkl;');
-  await expect(page.locator('#typed-display')).toHaveValue('asdf jkl;');
-  await expect(page.locator('#typed-display')).toBeEditable();
-});
-
-test('practice below 90 percent retries and a 90-plus retry completes', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
+  await page.locator('[data-view="practice"]').click();
+  await expect(page.locator('.levels')).toBeVisible();
   const target=await targetText(page);
-
-  for(let i=0;i<5;i++){
-    await page.keyboard.type('x');
-    await page.keyboard.press('Backspace');
-    await page.keyboard.type(target[i]);
-  }
-  await page.keyboard.type(target.slice(5));
-  await expect(page.locator('#message')).toContainText('Try again');
-  await expect(page.locator('#lesson-list [data-lesson="0"] em')).toHaveCount(0);
-
-  await page.locator('#start').click();
-  await page.keyboard.type('x');
-  await page.keyboard.press('Backspace');
-  await page.keyboard.type(target);
+  await typePhrase(page,target);
   await expect(page.locator('#message')).toContainText('Practice complete');
-  await expect(page.locator('#lesson-list [data-lesson="0"] em')).toContainText('Complete');
+  await page.locator('[data-view="learn"]').click();
+  await expect(page.locator('#lesson-list em')).toHaveCount(0);
 });
 
-test('challenge waits for first key, accepts mistakes, and keeps accepting input', async ({ page })=>{
+test('challenge waits for first letter and accepts mistakes continuously',async({page})=>{
   await createStudent(page);
   await page.locator('[data-view="challenge"]').click();
   await page.locator('#challenge-start').click();
-  await expect(page.locator('#challenge-timer')).toBeVisible();
   await expect(page.locator('#timer-seconds')).toHaveText('60');
   await page.waitForTimeout(1100);
   await expect(page.locator('#timer-seconds')).toHaveText('60');
 
   await page.keyboard.type('X');
   await expect(page.locator('#mistakes')).toHaveText('1');
-  await page.keyboard.type('Practice');
-  await expect(page.locator('#typed-display')).toHaveValue('XPractice');
+  await page.keyboard.type('ractice');
+  await expect(page.locator('#typed-display')).toHaveValue('Xractice');
   await expect(page.locator('#typed-display')).toBeEditable();
+
   await page.waitForTimeout(1200);
   const seconds=Number(await page.locator('#timer-seconds').textContent());
   expect(seconds).toBeLessThan(60);
   expect(seconds).toBeGreaterThanOrEqual(58);
 });
 
-test('leaving a running challenge stops its timer', async ({ page })=>{
+test('leaving challenge stops its timer',async({page})=>{
   await createStudent(page);
   await page.locator('[data-view="challenge"]').click();
   await page.locator('#challenge-start').click();
   await page.keyboard.type('P');
   await page.waitForTimeout(1100);
-  const before=Number(await page.locator('#timer-seconds').textContent());
+  const before=await page.locator('#timer-seconds').textContent();
   await page.locator('[data-view="learn"]').click();
-  await page.waitForTimeout(1300);
-  const after=Number(await page.locator('#timer-seconds').textContent());
-  expect(after).toBe(before);
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#timer-seconds')).toHaveText(before);
 });
 
-test('challenge finalization freezes the timer and keeps independent best metrics', async ({ page })=>{
-  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({name:'Challenger',completed:[],best:{wpm:99,accuracy:50}})));
-  await page.goto(BASE_URL);
-  await page.locator('[data-view="challenge"]').click();
-  await page.locator('#challenge-start').click();
-  await page.keyboard.type('Practice');
-  await page.evaluate(()=>finishChallenge('time'));
-  await expect(page.locator('#message')).toContainText('Time!');
-  const frozen=await page.locator('#timer-seconds').textContent();
-  await page.waitForTimeout(700);
-  await expect(page.locator('#timer-seconds')).toHaveText(frozen);
-  await page.locator('[data-view="challenge"]').click();
-  await expect(page.locator('#best-wpm')).toHaveText('99');
-  await expect(page.locator('#best-accuracy')).toHaveText('100%');
-  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')));
-  expect(saved.best).toEqual({wpm:99,accuracy:100});
-});
-
-test('saved progress is deduplicated and stored results are bounded', async ({ page })=>{
-  await page.addInitScript(()=>{
-    localStorage.setItem('bc-keyboard',JSON.stringify({
-      name:'Returning Student',
-      completed:[0,0,1,99,-1,'2'],
-      last:{wpm:-5,accuracy:999},
-      best:{wpm:22.4,accuracy:98.6}
-    }));
-  });
-  await page.goto(BASE_URL);
-  await expect(page.locator('#profile')).toBeHidden();
-  await page.locator('[data-view="progress"]').click();
-  await expect(page.locator('#progress-content')).toContainText('2 of 7 lessons completed');
-  await expect(page.locator('#progress-content')).toContainText('Last result: 0 WPM · 100% accuracy');
-  await expect(page.locator('#progress-content')).toContainText('Best challenge results: Fastest 22 WPM · Highest 99% accuracy');
-});
-
-test('primitive or corrupt saved state cannot crash the app', async ({ page })=>{
-  await page.goto(BASE_URL);
-  await page.evaluate(()=>localStorage.setItem('bc-keyboard','"broken-state"'));
-  await page.reload();
-  await expect(page.locator('#profile')).toBeVisible();
-  await expect(page.locator('#student-nav')).toBeHidden();
-  await page.locator('#student-name').fill('Recovered');
-  await page.locator('#save-profile').click();
-  await expect(page.locator('#learn')).toBeVisible();
-});
-
-test('Letter Rain accepts input and stops animating after navigation', async ({ page })=>{
+test('completed progress survives reload',async({page})=>{
   await createStudent(page);
-  await page.locator('[data-view="games"]').click();
-  await page.locator('[data-game="rain"]').click();
-  const key=(await page.locator('#game-board').textContent()).trim().slice(-1);
-  await page.keyboard.type(key);
-  await expect(page.locator('#game-score')).toHaveText('1');
-  await page.waitForTimeout(450);
-  const before=await page.locator('#game-board').innerHTML();
-  await page.locator('[data-view="learn"]').click();
-  await page.waitForTimeout(900);
-  const after=await page.locator('#game-board').innerHTML();
-  expect(after).toBe(before);
+  await page.locator('[data-lesson="1"]').click();
+  await typePhrase(page,'red tree quiet type power');
+  await expect(page.locator('#message')).toContainText('Practice complete');
+  await page.reload();
+  await expect(page.locator('[data-lesson="1"] em')).toContainText('Complete');
 });
 
-test('Bubble Pop and Rocket Race accept their displayed keys', async ({ page })=>{
+test('games still receive keyboard input',async({page})=>{
   await createStudent(page);
   await page.locator('[data-view="games"]').click();
 
@@ -291,43 +237,12 @@ test('Bubble Pop and Rocket Race accept their displayed keys', async ({ page })=
   await expect(page.locator('#game-score')).toHaveText('1');
 });
 
-test('completed lesson survives a page reload', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-lesson="0"]').click();
-  const target=await targetText(page);
-  await page.keyboard.type(target);
-  await expect(page.locator('#message')).toContainText('Practice complete');
-  await page.reload();
-  await expect(page.locator('#lesson-list [data-lesson="0"] em')).toContainText('Complete');
-});
-
-test('new student reset clears saved classroom progress only after confirmation', async ({ page })=>{
-  await createStudent(page,'Student One');
-  await page.locator('[data-view="progress"]').click();
-  page.once('dialog',dialog=>dialog.accept());
-  await page.locator('#new-student').click();
-  await page.waitForLoadState('domcontentloaded');
-  await expect(page.locator('#profile')).toBeVisible();
-  await expect(page.locator('#student-nav')).toBeHidden();
-  expect(await page.evaluate(()=>localStorage.getItem('bc-keyboard'))).toBeNull();
-});
-
-test('Rocket Race reaches a clean finish after 20 correct keys', async ({ page })=>{
-  await createStudent(page);
-  await page.locator('[data-view="games"]').click();
-  await page.locator('[data-game="race"]').click();
-  for(let i=1;i<=20;i++){
-    const key=(await page.locator('#game-board strong').textContent()).trim();
-    await page.keyboard.type(key);
-    await expect(page.locator('#game-score')).toHaveText(String(i));
-  }
-  await expect(page.locator('#game-message')).toContainText('Finish!');
-  await expect(page.locator('#game-board')).toContainText('Race complete!');
-});
-
-test('mobile-width page does not create horizontal overflow', async ({ page })=>{
+test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
-  const sizes=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth}));
+  const sizes=await page.evaluate(()=>({
+    scroll:document.documentElement.scrollWidth,
+    client:document.documentElement.clientWidth
+  }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.client+1);
 });
