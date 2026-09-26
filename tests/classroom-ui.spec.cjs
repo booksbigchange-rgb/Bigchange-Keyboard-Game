@@ -476,6 +476,35 @@ test('primary student flows produce no uncaught browser errors',async({page})=>{
   expect(consoleErrors).toEqual([]);
 });
 
+test('game keyboard listener releases control after leaving games',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="bubble"]').click();
+  const key=(await page.locator('#game-board').textContent()).trim();
+  await page.keyboard.type(key);
+  await expect(page.locator('#game-score')).toHaveText('1');
+
+  await page.locator('[data-view="practice"]').click();
+  const box=page.locator('#typed-display');
+  await page.keyboard.type('asdf');
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+});
+
+test('stored progress is sanitized and bounded before rendering',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({
+    name:'Returning Student',
+    completed:[0,0,1,99,-1,'2'],
+    last:{wpm:-20,accuracy:999},
+    best:{wpm:22.4,accuracy:98.6}
+  })));
+  await page.goto(BASE_URL);
+  await page.locator('[data-view="progress"]').click();
+  await expect(page.locator('#progress-content')).toContainText('2 of 7 lessons completed');
+  await expect(page.locator('#progress-content')).toContainText('Last result: 0 WPM · 100% accuracy');
+  await expect(page.locator('#progress-content')).toContainText('Fastest 22 WPM · Highest 99% accuracy');
+});
+
 test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
