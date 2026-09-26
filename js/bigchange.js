@@ -1,5 +1,5 @@
 const BIGCHANGE_BUILD=document.querySelector('meta[name="bigchange-build"]')?.content||'unknown';
-console.info('[BigChange Keyboard Game]',BIGCHANGE_BUILD,'branch=typing-core-v3');
+console.info('[BigChange Keyboard Game]',BIGCHANGE_BUILD,'engine=word-scoped-v3');
 
 const lessons=[
   ['Home Row','asdf jkl;','asdf jkl; asdf jkl; dad sad fall ask'],

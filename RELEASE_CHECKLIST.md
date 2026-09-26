@@ -2,8 +2,9 @@
 
 ## Source of truth
 - Active upgrade branch: `typing-core-v3`
-- Expected V3 build marker: `core-v3-20260926-2`
-- V2 remains frozen fallback.
+- Expected V3 build marker: `core-v3-20260926-3`
+- `typing-core-v2` is the GitHub Pages live-preview branch carrying tested V3 code.
+- `typing-core-v2-frozen` preserves the pre-V3 fallback.
 - V3 release path: Draft PR #4 -> `main`
 
 ## Core acceptance checks
@@ -36,5 +37,5 @@ For any typing report:
 Do not merge V3 into `main` until:
 - V3 push CI passes.
 - V3 PR CI passes.
-- V3 is intentionally selected for GitHub Pages testing.
+- Tested V3 changes have been promoted into the `typing-core-v2` Pages live-preview branch.
 - Real-device testing confirms Top Row, Backspace, Practice, and the 1-minute Challenge.

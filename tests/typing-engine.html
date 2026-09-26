@@ -1,22 +1,98 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Typing Engine Tests</title>
-<pre id="out"></pre>
-<script src="../js/engine.js"></script>
-<script>
-const out=document.querySelector('#out');let pass=0,fail=0;
-function test(name,fn){try{fn();out.textContent+=`✓ ${name}\n`;pass++}catch(e){out.textContent+=`✗ ${name}: ${e.message}\n`;fail++}}
-function eq(a,b){if(a!==b)throw Error(`${a} !== ${b}`)}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BigChange V3 Typing Engine Tests</title>
+  <style>
+    body{font:16px/1.5 system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px}
+    pre{white-space:pre-wrap;background:#f5f7f6;padding:20px;border-radius:12px}
+  </style>
+</head>
+<body>
+  <h1>BigChange Typing Core V3 — Manual Browser Check</h1>
+  <pre id="out"></pre>
+  <script src="../js/engine.js?v=core-v3-20260926-3"></script>
+  <script>
+    const out=document.querySelector('#out');
+    let pass=0,fail=0;
+    function test(name,fn){
+      try{fn();out.textContent+='✓ '+name+'\n';pass++}
+      catch(error){out.textContent+='✗ '+name+': '+error.message+'\n';fail++}
+    }
+    function eq(actual,expected){
+      if(actual!==expected)throw Error(String(actual)+' !== '+String(expected));
+    }
 
-test('correct key advances',()=>{const s=new KQ.TypingSession('ab');eq(s.input('a'),'correct');eq(s.pos,1)});
-test('wrong substitution advances without blocking',()=>{const s=new KQ.TypingSession('ab');eq(s.input('x'),'wrong');eq(s.pos,1);eq(s.input('b'),'complete');eq(s.stats().mistakes,1)});
-test('single inserted character recovers alignment',()=>{const s=new KQ.TypingSession('a b');s.input('a');s.input('p');eq(s.input(' '),'corrected');eq(s.input('b'),'complete');eq(s.stats().mistakes,1)});
-test('multiple inserted characters can recover alignment',()=>{const s=new KQ.TypingSession('a bc');s.input('a');s.input('x');s.input('y');eq(s.input(' '),'corrected');eq(s.input('b'),'corrected');eq(s.input('c'),'complete');eq(s.stats().mistakes,2)});
-test('short omission resyncs ahead',()=>{const s=new KQ.TypingSession('abcde');s.input('a');eq(s.input('d'),'resynced');eq(s.pos,4);eq(s.stats().mistakes,2);eq(s.input('e'),'complete')});
-test('backspace revisits previous position',()=>{const s=new KQ.TypingSession('ab');s.input('x');eq(s.backspace(),true);eq(s.pos,0);eq(s.input('a'),'correct')});
-test('accuracy stays bounded',()=>{const s=new KQ.TypingSession('abc');s.input('x');s.input('b');s.input('c');const a=s.stats().accuracy;if(a<0||a>100)throw Error('accuracy out of range')});
-test('input ignored after completion',()=>{const s=new KQ.TypingSession('a');s.input('a');eq(s.input('x'),'ignored')});
+    test('session starts on the first word',()=>{
+      const s=new KQ.TypingSession('red tree');
+      eq(s.currentWord,'red');
+      eq(s.wordIndex,0);
+    });
 
-out.textContent+=`\n${pass} passed · ${fail} failed`;
-document.title=(fail?'FAIL':'PASS')+' — Typing Engine Tests';
-</script>
+    test('wrong letters appear immediately without locking',()=>{
+      const s=new KQ.TypingSession('red tree');
+      s.update('redb',1000);
+      eq(s.stats(1000).mistakes,1);
+      eq(s.stats(1000).currentErrors,1);
+      s.update('redby',1100);
+      eq(s.stats(1100).mistakes,2);
+    });
+
+    test('Backspace clears visible error but keeps attempt penalty',()=>{
+      const s=new KQ.TypingSession('red tree');
+      s.update('rex',1000);
+      s.update('re',1100);
+      s.update('red',1200);
+      eq(s.stats(1200).mistakes,0);
+      eq(s.stats(1200).attemptErrors,1);
+    });
+
+    test('Space-style commit advances exactly one word',()=>{
+      const s=new KQ.TypingSession('red tree quiet');
+      s.update('red',1000);
+      eq(s.commitWord(1100,'space'),'next-word');
+      eq(s.currentWord,'tree');
+      eq(s.wordIndex,1);
+    });
+
+    test('extra letters stay local to their word',()=>{
+      const s=new KQ.TypingSession('red tree');
+      s.update('redbyree',1000);
+      eq(s.currentWord,'red');
+      eq(s.stats(1000).currentErrors,5);
+      s.commitWord(1100,'space');
+      eq(s.currentWord,'tree');
+      eq(s.input,'');
+    });
+
+    test('empty Backspace logic can reopen previous word',()=>{
+      const s=new KQ.TypingSession('red tree');
+      s.update('red',1000);
+      s.commitWord(1100,'space');
+      eq(s.reopenPreviousWord(1200),true);
+      eq(s.currentWord,'red');
+      eq(s.input,'red');
+    });
+
+    test('final exact word completes session',()=>{
+      const s=new KQ.TypingSession('red');
+      eq(s.update('red',1000),'complete');
+      eq(s.done,true);
+    });
+
+    test('accuracy and WPM stay bounded',()=>{
+      const s=new KQ.TypingSession('abcdefghij next');
+      s.update('abcxefghij',1000);
+      s.commitWord(2000,'space');
+      s.finish(61000);
+      const stats=s.stats(61000);
+      if(stats.accuracy<0||stats.accuracy>100)throw Error('accuracy out of range');
+      if(!Number.isFinite(stats.wpm)||stats.wpm<0)throw Error('invalid WPM');
+    });
+
+    out.textContent+='\n'+pass+' passed · '+fail+' failed';
+    document.title=(fail?'FAIL':'PASS')+' — BigChange V3 Typing Engine Tests';
+  </script>
+</body>
+</html>

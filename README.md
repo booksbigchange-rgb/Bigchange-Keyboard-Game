@@ -2,30 +2,35 @@
 
 A classroom-friendly typing game for BigChange students.
 
-## Current release path
+## Current release and deployment path
 
 - `main` — stable/default branch. Do not develop directly here.
-- `student-flow` — previous classroom version kept as fallback/reference.
-- `typing-core-v2` — frozen V2 fallback with sentence-wide typing.
-- `typing-core-v3` — active upgrade branch.
+- `typing-core-v3` — active source branch for the V3 typing engine.
+- `typing-core-v2` — **GitHub Pages live-preview branch**. Despite the historical branch name, it currently carries the tested V3 code.
+- `typing-core-v2-frozen` — preserved pre-V3 V2 fallback.
+- `student-flow` — older classroom-flow fallback/reference.
 - `keyquest-import` — old import/experiment branch only.
-- Draft PR #4 — intended V3 path into `main` after live-device acceptance.
+- Draft PR #4 — intended V3 path into `main` after final live-device acceptance.
+
+GitHub Pages continues to publish from `typing-core-v2` / repository root. V3 changes are tested on `typing-core-v3` first, then promoted into that live-preview branch.
+
+Current expected live build marker: `core-v3-20260926-3`.
 
 ## Typing Core V3
 
-V3 changes the typing model from sentence-wide comparison to a **word-scoped event engine**.
+V3 uses a **word-scoped event engine** instead of sentence-wide re-alignment.
 
 - A real textarea contains only the current word.
-- Every inserted/deleted character is recorded immediately.
-- A mistake appears immediately on the current word.
-- A mistake never locks the keyboard.
+- Every inserted/deleted character is processed immediately.
+- Wrong characters appear immediately.
+- Mistakes never lock the keyboard.
 - Space commits exactly one word and advances exactly one word.
-- Extra letters stay local to the current word instead of shifting the entire sentence.
-- Empty Backspace can reopen the previous committed word.
-- Practice and the 1-minute challenge share the same word engine.
-- Learn remains lesson-based while we prepare the later Qwerty Learner-style review system.
-
-Visible V3 build marker: `core-v3-20260926-1`.
+- Empty/repeated Space cannot skip words.
+- Extra letters stay local to the current word.
+- Backspace edits naturally; an empty Backspace can reopen the previous committed word.
+- Visible Mistakes tracks unresolved/final word errors.
+- Corrected wrong keypresses still reduce Accuracy without remaining as visible mistakes.
+- Practice and the 1-minute Challenge share the same V3 engine.
 
 ## Current student experience
 
@@ -33,25 +38,25 @@ Visible V3 build marker: `core-v3-20260926-1`.
 - Seven guided lessons
 - Easy, Medium, and Hard free practice
 - Live WPM, accuracy, and mistakes
-- Word-scoped typing with immediate feedback
-- Natural Backspace editing
 - 90% lesson completion threshold
 - 1-minute challenge
-- Progress tracking
+- Persistent local progress
 - Letter Rain, Rocket Race, and Bubble Pop
 - New-student reset
 - Responsive classroom layout
 
-## V3 automated checks
+## Automated checks
 
-The V3 branch runs:
+The active V3/live code is checked with:
 
-- JavaScript syntax checks
-- Word-engine regression tests
+- JavaScript syntax validation
+- Typing-engine regression tests and deterministic fuzzing
 - DOM/cache-busting smoke checks
 - Chromium classroom acceptance tests
+- Regression coverage for reported Top Row and Home Row failure states
+- Practice-level, storage, timer, reset, games, and mobile-width checks
 
-The regression suite includes the reported Top Row failure pattern so extra letters after `red` must appear as mistakes immediately and cannot make the engine jump later.
+The app has no production build step and no runtime third-party dependency.
 
 ## Open-source references
 

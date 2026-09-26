@@ -152,6 +152,56 @@ test('screenshot regression keeps visible mistakes aligned with current word',()
   eq(s.stats(1200).accuracy,89);
 });
 
+test('wrong committed word stays local and next word starts clean',()=>{
+  const s=new KQ.TypingSession('asdf jkl; asdf');
+  s.update('asxf',1000);
+  eq(s.stats(1000).mistakes,1);
+  s.commitWord(1100,'space');
+  eq(s.currentWord,'jkl;');
+  eq(s.input,'');
+  eq(s.stats(1100).currentErrors,0);
+  eq(s.stats(1100).mistakes,1);
+  s.update('jkl;',1200);
+  eq(s.stats(1200).currentErrors,0);
+  eq(s.stats(1200).mistakes,1);
+});
+
+test('reopening and repairing a wrong committed word clears its visible error',()=>{
+  const s=new KQ.TypingSession('asdf jkl;');
+  s.update('asxf',1000);
+  s.commitWord(1100,'space');
+  eq(s.stats(1100).mistakes,1);
+  eq(s.reopenPreviousWord(1200),true);
+  s.update('asdf',1300);
+  eq(s.stats(1300).mistakes,0);
+  eq(s.stats(1300).attemptErrors,1);
+  s.commitWord(1400,'space');
+  eq(s.history[0].correct,true);
+  eq(s.stats(1400).mistakes,0);
+});
+
+test('committing a word never advances more than one target',()=>{
+  const s=new KQ.TypingSession('one two three');
+  s.update('one',1000);
+  s.commitWord(1100,'space');
+  eq(s.wordIndex,1);
+  eq(s.currentWord,'two');
+  s.update('two',1200);
+  s.commitWord(1300,'space');
+  eq(s.wordIndex,2);
+  eq(s.currentWord,'three');
+});
+
+test('empty session is safely complete with bounded stats',()=>{
+  const s=new KQ.TypingSession('   ');
+  eq(s.done,true);
+  const st=s.stats(1000);
+  eq(st.accuracy,100);
+  eq(st.mistakes,0);
+  eq(st.progress,0);
+  eq(st.wpm,0);
+});
+
 test('event log records inserts deletes and commits',()=>{
   const s=new KQ.TypingSession('red tree');
   s.update('rex',1000);
