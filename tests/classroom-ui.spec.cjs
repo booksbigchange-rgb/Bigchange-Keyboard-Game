@@ -425,6 +425,57 @@ test('Rocket Race completes exactly at 20 correct keys',async({page})=>{
   await expect(page.locator('#game-board')).toContainText('Race complete!');
 });
 
+test('typing focus survives word commits and previous-word reopen',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  const box=page.locator('#typed-display');
+
+  await page.keyboard.type('red');
+  await page.keyboard.press('Space');
+  await expect(box).toBeFocused();
+
+  await page.keyboard.press('Backspace');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue('red');
+
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('d');
+  await expect(box).toBeFocused();
+});
+
+test('primary student flows produce no uncaught browser errors',async({page})=>{
+  const pageErrors=[];
+  const consoleErrors=[];
+  page.on('pageerror',error=>pageErrors.push(error.message));
+  page.on('console',message=>{
+    if(message.type()==='error')consoleErrors.push(message.text());
+  });
+
+  await createStudent(page,'Error Check Student');
+  await page.locator('[data-lesson="0"]').click();
+  await page.keyboard.type('asdf');
+  await page.keyboard.press('Space');
+  await page.keyboard.type('jkl;');
+  await page.keyboard.press('Space');
+
+  await page.locator('[data-view="practice"]').click();
+  await page.keyboard.type('asdf');
+  await page.keyboard.press('Space');
+
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('Practice');
+  await page.keyboard.press('Space');
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="bubble"]').click();
+  const key=(await page.locator('#game-board').textContent()).trim();
+  await page.keyboard.type(key);
+  await page.locator('[data-view="progress"]').click();
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
 test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
