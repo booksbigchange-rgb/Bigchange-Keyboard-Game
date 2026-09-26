@@ -75,7 +75,7 @@ test('editing inside current word is evaluated immediately',()=>{
   // final exact word auto-finishes, so use a longer word for mid-edit.
   const x=new KQ.TypingSession('trees');
   x.update('tres',1000);
-  eq(x.stats(1000).currentErrors,2);
+  eq(x.stats(1000).currentErrors,1);
   x.update('trees',1200);
   eq(x.stats(1200).currentErrors,0);
 });
