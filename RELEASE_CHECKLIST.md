@@ -2,7 +2,7 @@
 
 ## Source of truth
 - Active upgrade branch: `typing-core-v3`
-- Expected V3 build marker: `core-v3-20260926-1`
+- Expected V3 build marker: `core-v3-20260926-2`
 - V2 remains frozen fallback.
 - V3 release path: Draft PR #4 -> `main`
 
