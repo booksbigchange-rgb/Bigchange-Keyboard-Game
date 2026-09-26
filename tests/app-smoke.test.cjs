@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const build='core-v3-20260926-1';
+const build='core-v3-20260926-2';
 
 const requiredIds=[
   'profile','student-name','save-profile','student-nav','learn','lesson-list',

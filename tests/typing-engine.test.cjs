@@ -58,15 +58,16 @@ test('missing letters are counted at word commit',()=>{
   eq(s.stats(1100).mistakes,2);
 });
 
-test('Backspace correction never removes historical mistake count',()=>{
+test('Backspace correction removes visible mistake but keeps accuracy penalty',()=>{
   const s=new KQ.TypingSession('red tree');
   s.update('rex',1000);
   eq(s.stats(1000).mistakes,1);
   s.update('re',1100);
-  eq(s.stats(1100).mistakes,1);
+  eq(s.stats(1100).mistakes,0);
   s.update('red',1200);
-  eq(s.stats(1200).mistakes,1);
+  eq(s.stats(1200).mistakes,0);
   eq(s.stats(1200).currentErrors,0);
+  eq(s.stats(1200).attemptErrors,1);
 });
 
 test('editing inside current word is evaluated immediately',()=>{
@@ -119,8 +120,36 @@ test('accuracy includes corrected historical mistakes',()=>{
   s.update('re',1100);
   s.update('red',1200);
   eq(s.done,true);
-  eq(s.stats(1200).mistakes,1);
+  eq(s.stats(1200).mistakes,0);
+  eq(s.stats(1200).attemptErrors,1);
   eq(s.stats(1200).accuracy,75);
+});
+
+test('reopening a missed word does not double count omissions',()=>{
+  const s=new KQ.TypingSession('asdf jkl;');
+  s.update('as',1000);
+  s.commitWord(1100,'space');
+  eq(s.stats(1100).mistakes,2);
+  eq(s.stats(1100).attemptErrors,2);
+  eq(s.reopenPreviousWord(1200),true);
+  eq(s.stats(1200).mistakes,0);
+  eq(s.stats(1200).attemptErrors,0);
+  s.update('asdf',1300);
+  s.commitWord(1400,'space');
+  eq(s.stats(1400).mistakes,0);
+  eq(s.stats(1400).attemptErrors,0);
+});
+
+test('screenshot regression keeps visible mistakes aligned with current word',()=>{
+  const s=new KQ.TypingSession('asdf jkl; asdf');
+  s.update('asdf',1000);
+  s.commitWord(1100,'space');
+  eq(s.history[0].correct,true);
+  s.update('jkl;i',1200);
+  eq(s.stats(1200).mistakes,1);
+  eq(s.stats(1200).currentErrors,1);
+  eq(s.stats(1200).attemptErrors,1);
+  eq(s.stats(1200).accuracy,89);
 });
 
 test('event log records inserts deletes and commits',()=>{

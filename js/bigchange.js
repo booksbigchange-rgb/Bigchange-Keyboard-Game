@@ -164,6 +164,10 @@ function renderWord(word,index,stats){
     if(i===stats.input.length)classes.push('reference-current');
     html+='<span class="'+classes.join(' ')+'">'+esc(word[i])+'</span>';
   }
+  if(stats.input.length>word.length){
+    const extra=stats.input.slice(word.length);
+    html+='<span class="typed-extra">'+esc(extra)+'</span>';
+  }
   if(stats.input.length>=word.length)html+='<span class="word-caret">▏</span>';
   html+='</span>';
   return html;

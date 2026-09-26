@@ -93,7 +93,10 @@ KQ.TypingSession = class TypingSession {
     this.input = '';
     this.history = [];
     this.events = [];
-    this.totalErrors = 0;
+    // Wrong key presses stay historical for accuracy.
+    // Missed letters belong to committed words and can be undone by reopening.
+    this.rawErrors = 0;
+    this.committedMisses = 0;
     this.totalInserted = 0;
     this.startTime = null;
     this.endTime = null;
@@ -133,7 +136,7 @@ KQ.TypingSession = class TypingSession {
       if (event.type === 'insert') {
         this.totalInserted++;
         if (!event.correct) {
-          this.totalErrors++;
+          this.rawErrors++;
           insertedErrors++;
         }
       }
@@ -165,13 +168,15 @@ KQ.TypingSession = class TypingSession {
     // Characters the student never typed are recorded when the word is
     // committed. They are mistakes, but they do not fabricate keypresses.
     const missed = Math.max(0, target.length - this.input.length);
-    this.totalErrors += missed;
+    this.committedMisses += missed;
 
     this.history.push({
       target,
       input: this.input,
       correct: this.input === target,
-      comparison
+      comparison,
+      missed,
+      mistakes: comparison.currentErrors + missed
     });
     this.events.push({
       type: 'commit',
@@ -203,6 +208,7 @@ KQ.TypingSession = class TypingSession {
     if (!previous) return false;
 
     this.wordIndex--;
+    this.committedMisses = Math.max(0, this.committedMisses - (previous.missed || 0));
     this.input = previous.input;
     this.events.push({
       type: 'reopen',
@@ -258,7 +264,10 @@ KQ.TypingSession = class TypingSession {
   stats(now = performance.now()) {
     const current = this.currentComparison();
     const correct = this.correctCharacterCount();
-    const attempts = correct + this.totalErrors;
+    const attemptErrors = this.rawErrors + this.committedMisses;
+    const attempts = correct + attemptErrors;
+    const committedMistakes = this.history.reduce((sum, word) => sum + (word.mistakes || 0), 0);
+    const visibleMistakes = committedMistakes + current.currentErrors;
     const completedWords = this.history.length;
 
     return {
@@ -266,7 +275,11 @@ KQ.TypingSession = class TypingSession {
       accuracy: attempts
         ? Math.max(0, Math.min(100, Math.round((correct / attempts) * 100)))
         : 100,
-      mistakes: this.totalErrors,
+      // "mistakes" mirrors what the student can currently see: final mistakes
+      // in committed words + unresolved mistakes in the active word.
+      // Corrected key presses still affect accuracy through attemptErrors.
+      mistakes: visibleMistakes,
+      attemptErrors,
       currentErrors: current.currentErrors,
       typed: this.input.length,
       correct,
