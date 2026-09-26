@@ -255,6 +255,176 @@ test('games still receive keyboard input',async({page})=>{
   await expect(page.locator('#game-score')).toHaveText('1');
 });
 
+test('empty and repeated spaces never skip target words',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  const box=page.locator('#typed-display');
+
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .current-word')).toContainText('red');
+  await expect(box).toHaveValue('');
+
+  await page.keyboard.type('red');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .current-word')).toContainText('tree');
+
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .current-word')).toContainText('tree');
+  await expect(box).toHaveValue('');
+});
+
+test('wrong committed word does not cascade into next word',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+
+  await page.keyboard.type('asxf');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await page.keyboard.press('Space');
+
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+  await expect(box).toHaveValue('');
+  await page.keyboard.type('jkl;');
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+});
+
+test('previous wrong word can be reopened repaired and recommitted',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+
+  await page.keyboard.type('asxf');
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .word-error')).toHaveCount(1);
+
+  await page.keyboard.press('Backspace');
+  await expect(box).toHaveValue('asxf');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('df');
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+
+  await page.keyboard.press('Space');
+  await expect(page.locator('#target .word-error')).toHaveCount(0);
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+});
+
+test('Easy Medium and Hard practice each start clean and complete',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="practice"]').click();
+
+  for(const level of ['easy','medium','hard']){
+    await page.locator('[data-level="'+level+'"]').click();
+    await expect(page.locator('#mistakes')).toHaveText('0');
+    await expect(page.locator('#accuracy')).toHaveText('100%');
+    const target=await targetText(page);
+    expect(target.length).toBeGreaterThan(3);
+    await typePhrase(page,target);
+    await expect(page.locator('#message')).toContainText('Practice complete');
+  }
+});
+
+test('existing saved student opens directly into Learn',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('bc-keyboard',JSON.stringify({
+    name:'Returning Student',
+    completed:[0,1],
+    last:{wpm:20,accuracy:95},
+    best:{wpm:30,accuracy:98}
+  })));
+  await page.goto(BASE_URL);
+  await expect(page.locator('#profile')).toBeHidden();
+  await expect(page.locator('#student-nav')).toBeVisible();
+  await expect(page.locator('#learn')).toBeVisible();
+  await expect(page.locator('#lesson-list em')).toHaveCount(2);
+});
+
+test('corrupt saved state cannot break startup',async({page})=>{
+  await page.goto(BASE_URL);
+  await page.evaluate(()=>localStorage.setItem('bc-keyboard','{broken'));
+  await page.reload();
+  await expect(page.locator('#profile')).toBeVisible();
+  await expect(page.locator('#student-nav')).toBeHidden();
+
+  await page.evaluate(()=>localStorage.setItem('bc-keyboard','"primitive"'));
+  await page.reload();
+  await expect(page.locator('#profile')).toBeVisible();
+});
+
+test('challenge restart resets timer stats and input',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('X');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await page.waitForTimeout(350);
+  await page.locator('#start').click();
+  await expect(page.locator('#timer-seconds')).toHaveText('60');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
+  await expect(page.locator('#typed-display')).toHaveValue('');
+});
+
+test('forced challenge finish freezes result and saves it',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('Practice');
+  await page.evaluate(()=>finishChallenge('time'));
+  await expect(page.locator('#typed-display')).toBeDisabled();
+  await expect(page.locator('#message')).toContainText('Time!');
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')));
+  expect(saved.last).toBeTruthy();
+  expect(Number.isFinite(saved.last.wpm)).toBeTruthy();
+  expect(saved.last.accuracy).toBeGreaterThanOrEqual(0);
+  expect(saved.last.accuracy).toBeLessThanOrEqual(100);
+});
+
+test('New Student reset clears app state after confirmation',async({page})=>{
+  await createStudent(page,'Student One');
+  await page.locator('[data-view="progress"]').click();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#new-student').click();
+  await page.waitForLoadState('domcontentloaded');
+  await expect(page.locator('#profile')).toBeVisible();
+  await expect(page.locator('#student-nav')).toBeHidden();
+  expect(await page.evaluate(()=>localStorage.getItem('bc-keyboard'))).toBeNull();
+});
+
+test('Letter Rain accepts a key then stops changing after navigation',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="rain"]').click();
+
+  const key=(await page.locator('#game-board').textContent()).trim().slice(-1);
+  await page.keyboard.type(key);
+  await expect(page.locator('#game-score')).toHaveText('1');
+
+  await page.locator('[data-view="learn"]').click();
+  const before=await page.locator('#game-board').innerHTML();
+  await page.waitForTimeout(900);
+  const after=await page.locator('#game-board').innerHTML();
+  expect(after).toBe(before);
+});
+
+test('Rocket Race completes exactly at 20 correct keys',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="race"]').click();
+
+  for(let i=1;i<=20;i++){
+    const key=(await page.locator('#game-board strong').textContent()).trim();
+    await page.keyboard.type(key);
+    await expect(page.locator('#game-score')).toHaveText(String(i));
+  }
+
+  await expect(page.locator('#game-message')).toContainText('Finish!');
+  await expect(page.locator('#game-board')).toContainText('Race complete!');
+});
+
 test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
