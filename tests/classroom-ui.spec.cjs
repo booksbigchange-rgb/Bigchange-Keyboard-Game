@@ -28,8 +28,8 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260926-2');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20260926-2');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260926-3');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20260926-3');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
