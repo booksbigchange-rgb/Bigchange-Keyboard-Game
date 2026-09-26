@@ -1,209 +1,196 @@
-const assert = require('node:assert/strict');
-global.window = global;
+const assert=require('node:assert/strict');
+global.window=global;
+global.performance={now:()=>Date.now()};
 require('../js/engine.js');
 
-let passed=0, failed=0;
-function test(name,fn){try{fn();console.log('✓',name);passed++}catch(err){console.error('✗',name,'-',err.message);failed++}}
+let passed=0,failed=0;
+function test(name,fn){try{fn();console.log('✓',name);passed++}catch(error){console.error('✗',name,'-',error.message);failed++}}
 function eq(a,b){assert.equal(a,b)}
 
-test('empty input stays at the beginning',()=>{
-  const s=new KQ.TypingSession('abc');
-  const st=s.stats(0);
-  eq(st.targetProgress,0);eq(st.accuracy,100);eq(st.mistakes,0)
+test('session splits lesson into words',()=>{
+  const s=new KQ.TypingSession('red tree quiet');
+  assert.deepEqual(s.words,['red','tree','quiet']);
+  eq(s.currentWord,'red');
 });
 
-test('correct text advances naturally',()=>{
-  const s=new KQ.TypingSession('abc');
-  s.update('a',1000);eq(s.stats(1000).targetProgress,1);
-  s.update('ab',1500);eq(s.stats(1500).targetProgress,2);
-  eq(s.update('abc',2000),'complete');eq(s.done,true)
-});
-
-test('a substitution is visible immediately and never blocks input',()=>{
-  const s=new KQ.TypingSession('abc');
-  s.update('ax',1000);
-  const st=s.stats(1000);
-  eq(st.targetProgress,2);eq(st.mistakes,1);eq(st.currentErrors,1);
-  eq(st.targetStates[1],KQ.WRONG);
-  eq(s.update('axc',1500),'complete');
-});
-
-test('progress follows raw input one position at a time without jumps',()=>{
-  const s=new KQ.TypingSession('red tree quiet type power');
-  for(const [value,progress] of [['r',1],['re',2],['red',3],['redb',4],['redby',5],['redbyr',6]]){
-    s.update(value,1000+progress*100);
-    eq(s.stats(2000).targetProgress,progress)
-  }
-});
-
-test('reported Top Row mistake sequence marks mistakes as they happen',()=>{
-  const s=new KQ.TypingSession('red tree quiet type power');
-  s.update('redb',1000);
-  let st=s.stats(1000);
-  eq(st.mistakes,1);eq(st.currentErrors,1);eq(st.targetStates[3],KQ.WRONG);
-  s.update('redby',1100);
-  st=s.stats(1100);
-  eq(st.mistakes,2);eq(st.currentErrors,2);eq(st.targetStates[4],KQ.WRONG);
-  s.update('redbyr',1200);
-  st=s.stats(1200);
-  eq(st.targetProgress,6);eq(st.mistakes,2)
-});
-
-test('append-only input cannot retroactively recolor an earlier position',()=>{
-  const s=new KQ.TypingSession('red tree quiet type power');
-  s.update('redby',1000);
-  const before=s.stats(1000).targetStates.slice(0,5);
-  s.update('redbyree',1500);
-  assert.deepEqual(s.stats(1500).targetStates.slice(0,5),before)
-});
-
-test('an omitted character does not trigger hidden automatic realignment',()=>{
-  const a=KQ.alignText('red tree','redtree');
-  eq(a.progress,7);
-  assert.ok(a.errors>=1);
-  eq(a.targetStates[7],KQ.PENDING)
-});
-
-test('Backspace correction is natural and historical mistakes remain counted',()=>{
-  const s=new KQ.TypingSession('abc');
-  s.update('ax',1000);
-  const historical=s.stats(1000).mistakes;
-  s.update('a',1200);
-  s.update('ab',1400);
-  eq(s.stats(1400).targetProgress,2);
-  eq(s.stats(1400).currentErrors,0);
-  eq(s.stats(1400).mistakes,historical);
-  eq(s.update('abc',1600),'complete')
-});
-
-test('replacing a same-length wrong value updates live feedback without erasing history',()=>{
-  const s=new KQ.TypingSession('abc');
-  s.update('ax',1000);
-  s.update('ab',1200);
-  eq(s.stats(1200).targetProgress,2);
+test('correct current-word typing is immediate',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('r',1000);
+  eq(s.stats(1000).targetStates[0],KQ.CORRECT);
+  s.update('red',1200);
   eq(s.stats(1200).currentErrors,0);
-  eq(s.stats(1200).mistakes,1)
 });
 
-test('extra characters beyond the target are marked wrong',()=>{
-  const a=KQ.alignText('abc','abcx');
-  eq(a.progress,3);eq(a.typedStates[3],KQ.WRONG);eq(a.errors,1)
+test('wrong letters appear immediately and never wait for later input',()=>{
+  const s=new KQ.TypingSession('red tree quiet type power');
+  s.update('red',1000);eq(s.stats(1000).mistakes,0);
+  s.update('redb',1100);eq(s.stats(1100).mistakes,1);eq(s.stats(1100).currentErrors,1);
+  s.update('redby',1200);eq(s.stats(1200).mistakes,2);eq(s.stats(1200).currentErrors,2);
+  s.update('redbyr',1300);eq(s.stats(1300).mistakes,3);eq(s.stats(1300).currentErrors,3);
 });
 
-test('target state is a literal position-by-position comparison',()=>{
-  const a=KQ.alignText('abc','ax');
-  eq(a.targetStates[0],KQ.CORRECT);
-  eq(a.targetStates[1],KQ.WRONG);
-  eq(a.targetStates[2],KQ.PENDING);
-  eq(a.progress,2)
+test('extra letters stay local to the current word',()=>{
+  const s=new KQ.TypingSession('red tree quiet');
+  s.update('redbyree',1000);
+  eq(s.currentWord,'red');
+  eq(s.wordIndex,0);
+  eq(s.stats(1000).currentErrors,5);
+  eq(s.commitWord(1100,'space'),'next-word');
+  eq(s.currentWord,'tree');
+  eq(s.input,'');
+  eq(s.wordIndex,1);
 });
 
-test('repeated letters remain bounded and deterministic',()=>{
-  const a=KQ.alignText('aaaa bbbb','aaax bbbb');
-  eq(a.progress,9);assert.ok(a.errors>=1)
+test('correct word commit advances exactly one word',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('red',1000);
+  eq(s.commitWord(1100,'space'),'next-word');
+  eq(s.currentWord,'tree');
+  eq(s.history.length,1);
+  eq(s.history[0].correct,true);
 });
 
-test('lesson can finish with a wrong final substitution',()=>{
-  const s=new KQ.TypingSession('abc');
-  eq(s.update('abx',2000),'complete');
-  eq(s.done,true);eq(s.stats(2000).mistakes,1)
+test('missing letters are counted at word commit',()=>{
+  const s=new KQ.TypingSession('tree quiet');
+  s.update('tr',1000);
+  eq(s.stats(1000).mistakes,0);
+  s.commitWord(1100,'space');
+  eq(s.stats(1100).mistakes,2);
 });
 
-test('short input cannot finish a longer target',()=>{
-  const s=new KQ.TypingSession('abcdefghij');
-  s.update('abc',1000);
-  eq(s.done,false);eq(s.stats(1000).targetProgress,3)
+test('Backspace correction never removes historical mistake count',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('rex',1000);
+  eq(s.stats(1000).mistakes,1);
+  s.update('re',1100);
+  eq(s.stats(1100).mistakes,1);
+  s.update('red',1200);
+  eq(s.stats(1200).mistakes,1);
+  eq(s.stats(1200).currentErrors,0);
 });
 
-test('mistake count never decreases after a Backspace correction',()=>{
-  const s=new KQ.TypingSession('hello');
-  s.update('hez',1000);
-  const before=s.stats(1000).mistakes;
-  s.update('he',1200);
-  assert.ok(s.stats(1200).mistakes>=before)
+test('editing inside current word is evaluated immediately',()=>{
+  const s=new KQ.TypingSession('tree');
+  s.update('tree',1000);
+  // final exact word auto-finishes, so use a longer word for mid-edit.
+  const x=new KQ.TypingSession('trees');
+  x.update('tres',1000);
+  eq(x.stats(1000).currentErrors,1);
+  x.update('trees',1200);
+  eq(x.stats(1200).currentErrors,0);
 });
 
-test('accuracy is historical keystroke accuracy and always bounded',()=>{
-  const s=new KQ.TypingSession('abcdef');
-  s.update('a',1000);
-  s.update('ax',1100);
-  eq(s.stats(1100).accuracy,50);
-  s.update('a',1200);
-  s.update('ab',1300);
-  eq(s.stats(1300).mistakes,1);
-  assert.ok(s.stats(1300).accuracy>=0&&s.stats(1300).accuracy<=100)
+test('empty Backspace can reopen previous committed word',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('red',1000);
+  s.commitWord(1100);
+  eq(s.wordIndex,1);
+  eq(s.reopenPreviousWord(1200),true);
+  eq(s.wordIndex,0);
+  eq(s.input,'red');
 });
 
-test('WPM uses currently correct target positions, not raw typed length',()=>{
-  const s=new KQ.TypingSession('abcdefghij');
+test('reopen is ignored when current input is not empty',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('red',1000);s.commitWord(1100);s.update('t',1200);
+  eq(s.reopenPreviousWord(1300),false);
+  eq(s.wordIndex,1);
+});
+
+test('last exact word auto-completes',()=>{
+  const s=new KQ.TypingSession('red');
+  eq(s.update('red',1000),'complete');
+  eq(s.done,true);
+  eq(s.history.length,1);
+});
+
+test('wrong final word can be explicitly committed to finish',()=>{
+  const s=new KQ.TypingSession('red');
+  s.update('rex',1000);
+  eq(s.done,false);
+  eq(s.commitWord(1100,'enter'),'complete');
+  eq(s.done,true);
+  eq(s.stats(1100).mistakes,1);
+});
+
+test('accuracy includes corrected historical mistakes',()=>{
+  const s=new KQ.TypingSession('red');
+  s.update('rex',1000);
+  s.update('re',1100);
+  s.update('red',1200);
+  eq(s.done,true);
+  eq(s.stats(1200).mistakes,1);
+  eq(s.stats(1200).accuracy,75);
+});
+
+test('event log records inserts deletes and commits',()=>{
+  const s=new KQ.TypingSession('red tree');
+  s.update('rex',1000);
+  s.update('re',1100);
+  s.update('red',1200);
+  s.commitWord(1300);
+  assert.ok(s.events.some(e=>e.type==='insert'&&e.correct===false));
+  assert.ok(s.events.some(e=>e.type==='delete'));
+  assert.ok(s.events.some(e=>e.type==='commit'));
+});
+
+test('spaces punctuation capitals and numbers stay inside word targets',()=>{
+  const s=new KQ.TypingSession('Big 2026 Hello!');
+  s.update('Big',1000);s.commitWord(1100);
+  s.update('2026',1200);s.commitWord(1300);
+  eq(s.update('Hello!',1500),'complete');
+  eq(s.done,true);
+  eq(s.stats(1500).mistakes,0);
+});
+
+test('WPM uses correct characters only',()=>{
+  const s=new KQ.TypingSession('abcdefghij next');
   s.startTime=1000;
-  s.value='abcdefghij';
-  s.lastAlignment=KQ.alignText(s.text,s.value);
-  s.finish(61000);
-  eq(s.stats(61000).wpm,2)
-});
-
-test('wrong text does not inflate WPM',()=>{
-  const s=new KQ.TypingSession('abcdefghij');
-  s.startTime=1000;
-  s.value='xxxxxxxxxx';
-  s.lastAlignment=KQ.alignText(s.text,s.value);
-  s.finish(61000);
-  eq(s.stats(61000).wpm,0)
-});
-
-test('forced challenge finish freezes time',()=>{
-  const s=new KQ.TypingSession('abcdefghijklmnopqrstuvwxyz');
   s.update('abcdefghij',1000);
+  s.commitWord(1100);
+  s.finish(61000);
+  eq(s.stats(61000).wpm,2);
+});
+
+test('forced challenge finish freezes elapsed time',()=>{
+  const s=new KQ.TypingSession('practice makes progress');
+  s.update('practice',1000);
+  s.commitWord(1200);
   s.finish(61000);
   eq(s.stats(999999).seconds,60);
   const wpm=s.stats(999999).wpm;
-  eq(s.stats(1999999).wpm,wpm)
+  eq(s.stats(1999999).wpm,wpm);
 });
 
-test('input after finish is ignored',()=>{
-  const s=new KQ.TypingSession('a');
-  s.update('a',1000);
-  eq(s.update('ab',2000),'ignored')
+test('completed session ignores more input',()=>{
+  const s=new KQ.TypingSession('red');
+  s.update('red',1000);
+  eq(s.update('redx',1100),'ignored');
+  eq(s.commitWord(1200),'ignored');
 });
 
-test('comparison handles spaces punctuation capitals and numbers',()=>{
-  for(const [target,typed] of [
-    ['Hello, student!','Hello, student!'],
-    ['2026 123','2026 123'],
-    ['Big Change','Big Change']
-  ]){
-    const a=KQ.alignText(target,typed);
-    eq(a.progress,target.length);eq(a.errors,0);eq(a.correct,target.length)
-  }
-});
-
-test('deterministic fuzz keeps positional session invariants valid',()=>{
-  let seed=246813579;
+test('deterministic fuzz preserves word-session invariants',()=>{
+  let seed=987654321;
   const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296};
-  const chars='asdf jkl;qwertyuiopzxcvbnm,.!?123ABC';
+  const chars='asdfjklqwertyuiopzxcvbnm123ABC!?';
   for(let run=0;run<200;run++){
-    let target='';
-    const n=5+Math.floor(rnd()*45);
-    for(let i=0;i<n;i++)target+=chars[Math.floor(rnd()*chars.length)];
-    const s=new KQ.TypingSession(target);
-    let value='';
-    for(let step=0;step<70&&!s.done;step++){
-      const r=rnd();
-      if(r<0.15&&value.length)value=value.slice(0,-1);
-      else value+=chars[Math.floor(rnd()*chars.length)];
-      s.update(value,1000+step*100);
+    const s=new KQ.TypingSession('red tree quiet type power');
+    for(let step=0;step<80&&!s.done;step++){
+      if(rnd()<0.15&&s.input.length){
+        s.update(s.input.slice(0,-1),1000+step*100);
+      }else if(rnd()<0.12&&s.input.length){
+        s.commitWord(1000+step*100,'space');
+      }else{
+        s.update(s.input+chars[Math.floor(rnd()*chars.length)],1000+step*100);
+      }
       const st=s.stats(1000+step*100);
-      assert.ok(st.targetProgress>=0&&st.targetProgress<=target.length);
-      eq(st.targetProgress,Math.min(value.length,target.length));
-      assert.ok(st.progress>=0&&st.progress<=1);
+      assert.ok(st.currentWordIndex>=0&&st.currentWordIndex<=st.totalWords);
       assert.ok(st.accuracy>=0&&st.accuracy<=100);
       assert.ok(st.mistakes>=0);
-      eq(st.targetStates.length,target.length);
-      eq(st.typedStates.length,value.length)
+      assert.ok(Number.isFinite(st.wpm)&&st.wpm>=0);
     }
   }
 });
 
-console.log(`\n${passed} passed · ${failed} failed`);
-if(failed) process.exit(1);
+console.log('\n'+passed+' passed · '+failed+' failed');
+if(failed)process.exit(1);

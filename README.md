@@ -4,55 +4,60 @@ A classroom-friendly typing game for BigChange students.
 
 ## Current release path
 
-- `main` — stable fallback / current default branch. Do not develop directly here.
-- `student-flow` — previous classroom version with the older custom typing core. Kept only as a fallback reference.
-- `typing-core-v2` — active development and GitHub Pages test branch.
-- `keyquest-import` — old import/experimentation branch. It is not a release branch.
-- Draft PR #3 — the only intended path from `typing-core-v2` into `main` after live-device acceptance.
+- `main` — stable/default branch. Do not develop directly here.
+- `student-flow` — previous classroom version kept as fallback/reference.
+- `typing-core-v2` — frozen V2 fallback with sentence-wide typing.
+- `typing-core-v3` — active upgrade branch.
+- `keyquest-import` — old import/experiment branch only.
+- Draft PR #4 — intended V3 path into `main` after live-device acceptance.
 
-GitHub Pages is configured to publish `typing-core-v2` from the repository root.
+## Typing Core V3
 
-Current visible asset build marker: `core-v2-20260925-2`.
+V3 changes the typing model from sentence-wide comparison to a **word-scoped event engine**.
 
-## Typing Core V2
+- A real textarea contains only the current word.
+- Every inserted/deleted character is recorded immediately.
+- A mistake appears immediately on the current word.
+- A mistake never locks the keyboard.
+- Space commits exactly one word and advances exactly one word.
+- Extra letters stay local to the current word instead of shifting the entire sentence.
+- Empty Backspace can reopen the previous committed word.
+- Practice and the 1-minute challenge share the same word engine.
+- Learn remains lesson-based while we prepare the later Qwerty Learner-style review system.
 
-The active development branch `typing-core-v2` replaces the older artificial-cursor typing model with a real browser textarea as the source of truth. Students can keep typing after mistakes, use Backspace naturally, and the comparison engine aligns the raw typed text against the target without locking the keyboard.
-
-The V2 direction is informed by MIT-licensed open-source typing projects documented in `THIRD_PARTY_NOTICES.md`.
+Visible V3 build marker: `core-v3-20260926-1`.
 
 ## Current student experience
 
-- Student profile with local progress on the current computer
-- Seven guided typing lessons
-- Separate Easy, Medium, and Hard free-practice modes
-- Live WPM, accuracy, and mistake feedback
-- Continuous typing after mistakes using a real browser text field
-- Natural Backspace editing without a locked error state
-- 90% lesson-completion threshold
-- Real one-minute typing challenge that starts on the first keystroke
-- Saved best challenge WPM and accuracy
+- Student profile with local progress
+- Seven guided lessons
+- Easy, Medium, and Hard free practice
+- Live WPM, accuracy, and mistakes
+- Word-scoped typing with immediate feedback
+- Natural Backspace editing
+- 90% lesson completion threshold
+- 1-minute challenge
 - Progress tracking
-- Letter Rain, Rocket Race, and Bubble Pop keyboard games
-- New-student reset for shared classroom computers
-- Responsive browser layout
-- Local/offline-friendly plain HTML, CSS, and JavaScript
+- Letter Rain, Rocket Race, and Bubble Pop
+- New-student reset
+- Responsive classroom layout
 
-## Classroom core checks
+## V3 automated checks
 
-The `typing-core-v2` branch runs automated checks on pushes and on the V2 pull request:
+The V3 branch runs:
 
 - JavaScript syntax checks
-- Typing-engine regression tests
-- DOM and cache-busting smoke checks
-- Chromium browser acceptance tests for profile, lessons, free practice, mistakes, Backspace, challenge timing, persistence, games, navigation, reset flow, and mobile-width overflow
+- Word-engine regression tests
+- DOM/cache-busting smoke checks
+- Chromium classroom acceptance tests
 
-The V2 test suite currently contains 21 engine regression tests and 21 Chromium browser acceptance tests.
+The regression suite includes the reported Top Row failure pattern so extra letters after `red` must appear as mistakes immediately and cannot make the engine jump later.
 
-The app has no build step.
+## Open-source references
+
+BigChange uses open-source projects as architectural and interaction references. See `THIRD_PARTY_NOTICES.md` for license details. GPL projects are used as behavioral/architectural references only; BigChange V3 source is independently implemented.
 
 ## Running locally
-
-Open `index.html` directly, or serve the folder:
 
 ```bash
 python3 -m http.server 4173
@@ -60,10 +65,4 @@ python3 -m http.server 4173
 
 Then open `http://localhost:4173`.
 
-Progress is stored in the browser's local storage on that computer.
-
-## Project base and attribution
-
-This project began from the open-source KeyQuest typing tutor and retains the relevant MIT license attribution. Typing Core V2 also draws on MIT-licensed interaction and architecture ideas documented in `THIRD_PARTY_NOTICES.md`.
-
-The student-facing product is branded as **BigChange Keyboard Game**.
+Progress is stored in browser local storage on that computer.

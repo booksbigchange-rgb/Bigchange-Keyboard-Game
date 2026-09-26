@@ -1,62 +1,47 @@
-// BigChange Typing Core V2.
+// BigChange Typing Core V3.
 //
-// The browser textarea is the source of truth. Live feedback is deliberately
-// positional: typed character i is compared with target character i.
-// Nothing is re-aligned later, so feedback cannot pause, jump forward, or
-// retroactively move mistakes after more keys arrive. Backspace and normal
-// textarea editing remain fully native.
+// V3 is intentionally word-scoped. It does not realign whole sentences.
+// A real textarea contains only the current word, and every insert/delete is
+// recorded immediately. Space commits a word and moves to the next word.
+// This keeps mistakes local and prevents delayed sentence-wide error jumps.
 //
-// Architecture is intentionally pure (no DOM, storage, or timers), following
-// the separation used by open-source typing tutors such as Layer Tutor (MIT).
+// Inspired by the interaction patterns of mature typing tutors such as
+// Monkeytype and Qwerty Learner. This implementation is original BigChange
+// code and does not copy GPL source.
 
 window.KQ = window.KQ || {};
 KQ.PENDING = 0;
 KQ.CORRECT = 1;
 KQ.WRONG = 2;
 
-KQ.alignText = function alignText(target, typed) {
+function splitWords(text) {
+  return String(text ?? '').trim().split(/\s+/).filter(Boolean);
+}
+
+function compareWord(target, typed) {
   target = String(target ?? '');
   typed = String(typed ?? '');
-
-  const progress = Math.min(typed.length, target.length);
   const targetStates = new Array(target.length).fill(KQ.PENDING);
   const typedStates = new Array(typed.length).fill(KQ.PENDING);
-  const operations = [];
   let correct = 0;
-  let errors = 0;
+  let currentErrors = 0;
 
-  for (let i = 0; i < progress; i++) {
-    if (typed[i] === target[i]) {
-      targetStates[i] = KQ.CORRECT;
+  for (let i = 0; i < typed.length; i++) {
+    if (i < target.length && typed[i] === target[i]) {
       typedStates[i] = KQ.CORRECT;
-      operations.push({ type: 'match', targetIndex: i, typedIndex: i });
+      targetStates[i] = KQ.CORRECT;
       correct++;
     } else {
-      targetStates[i] = KQ.WRONG;
       typedStates[i] = KQ.WRONG;
-      operations.push({ type: 'substitute', targetIndex: i, typedIndex: i });
-      errors++;
+      if (i < target.length) targetStates[i] = KQ.WRONG;
+      currentErrors++;
     }
   }
 
-  for (let i = target.length; i < typed.length; i++) {
-    typedStates[i] = KQ.WRONG;
-    operations.push({ type: 'insert', targetIndex: target.length, typedIndex: i });
-    errors++;
-  }
+  return { targetStates, typedStates, correct, currentErrors };
+}
 
-  return {
-    progress,
-    correct,
-    errors,
-    distance: errors,
-    targetStates,
-    typedStates,
-    operations
-  };
-};
-
-function inputChange(previousValue, nextValue, target) {
+function changeDetail(previousValue, nextValue, target) {
   let start = 0;
   const shared = Math.min(previousValue.length, nextValue.length);
   while (start < shared && previousValue[start] === nextValue[start]) start++;
@@ -72,60 +57,174 @@ function inputChange(previousValue, nextValue, target) {
     newEnd--;
   }
 
-  let keystrokes = 0;
-  let errors = 0;
-  for (let i = start; i < newEnd; i++) {
-    keystrokes++;
-    if (i >= target.length || nextValue[i] !== target[i]) errors++;
+  const inserted = nextValue.slice(start, newEnd);
+  const deleted = previousValue.slice(start, oldEnd);
+  const events = [];
+
+  for (let i = 0; i < deleted.length; i++) {
+    events.push({
+      type: 'delete',
+      charIndex: start,
+      char: deleted[i]
+    });
   }
 
-  return { keystrokes, errors };
+  for (let i = 0; i < inserted.length; i++) {
+    const charIndex = start + i;
+    const char = inserted[i];
+    events.push({
+      type: 'insert',
+      charIndex,
+      char,
+      correct: charIndex < target.length && char === target[charIndex]
+    });
+  }
+
+  return events;
 }
+
+KQ.compareWord = compareWord;
 
 KQ.TypingSession = class TypingSession {
   constructor(text) {
     this.text = String(text ?? '');
-    this.value = '';
+    this.words = splitWords(this.text);
+    this.wordIndex = 0;
+    this.input = '';
+    this.history = [];
+    this.events = [];
+    this.totalErrors = 0;
+    this.totalInserted = 0;
     this.startTime = null;
     this.endTime = null;
-    this.done = this.text.length === 0;
+    this.done = this.words.length === 0;
     this.wpm = 0;
-    this.totalErrors = 0;
-    this.totalKeystrokes = 0;
-    this.lastAlignment = KQ.alignText(this.text, '');
     this.resultHandled = false;
     this.challengeResultHandled = false;
   }
 
+  get currentWord() {
+    return this.done ? null : this.words[this.wordIndex] ?? null;
+  }
+
   get expected() {
-    return this.done ? null : this.text[this.lastAlignment.progress] ?? null;
+    const word = this.currentWord;
+    if (word === null) return null;
+    return word[this.input.length] ?? null;
+  }
+
+  currentComparison() {
+    return compareWord(this.currentWord ?? '', this.input);
   }
 
   update(value, now = performance.now()) {
     if (this.done) return 'ignored';
 
-    value = String(value ?? '');
-    const previousValue = this.value;
-    const previous = this.lastAlignment;
-
+    value = String(value ?? '').replace(/\s/g, '');
     if (this.startTime === null && value.length > 0) this.startTime = now;
 
-    const change = inputChange(previousValue, value, this.text);
-    this.totalKeystrokes += change.keystrokes;
-    this.totalErrors += change.errors;
-    this.value = value;
-    const next = KQ.alignText(this.text, value);
-    this.lastAlignment = next;
+    const previous = this.input;
+    const detail = changeDetail(previous, value, this.currentWord ?? '');
+    let insertedErrors = 0;
+
+    for (const event of detail) {
+      const logged = { ...event, wordIndex: this.wordIndex, at: now };
+      this.events.push(logged);
+      if (event.type === 'insert') {
+        this.totalInserted++;
+        if (!event.correct) {
+          this.totalErrors++;
+          insertedErrors++;
+        }
+      }
+    }
+
+    this.input = value;
     this.updateWpm(now);
 
-    if (next.progress >= this.text.length && value.length > 0) {
+    // The final word may finish automatically once it is exactly correct.
+    if (
+      this.wordIndex === this.words.length - 1 &&
+      this.input === this.currentWord
+    ) {
+      return this.commitWord(now, 'auto');
+    }
+
+    if (insertedErrors > 0) return 'mistake';
+    if (value.length < previous.length) return 'corrected';
+    return 'updated';
+  }
+
+  commitWord(now = performance.now(), reason = 'space') {
+    if (this.done) return 'ignored';
+    if (this.startTime === null && this.input.length > 0) this.startTime = now;
+
+    const target = this.currentWord ?? '';
+    const comparison = compareWord(target, this.input);
+
+    // Characters the student never typed are recorded when the word is
+    // committed. They are mistakes, but they do not fabricate keypresses.
+    const missed = Math.max(0, target.length - this.input.length);
+    this.totalErrors += missed;
+
+    this.history.push({
+      target,
+      input: this.input,
+      correct: this.input === target,
+      comparison
+    });
+    this.events.push({
+      type: 'commit',
+      wordIndex: this.wordIndex,
+      input: this.input,
+      target,
+      correct: this.input === target,
+      missed,
+      reason,
+      at: now
+    });
+
+    this.wordIndex++;
+    this.input = '';
+
+    if (this.wordIndex >= this.words.length) {
       this.finish(now);
       return 'complete';
     }
 
-    if (change.errors > 0) return 'mistake';
-    if (value.length < previousValue.length || next.errors < previous.errors) return 'corrected';
-    return 'updated';
+    this.updateWpm(now);
+    return 'next-word';
+  }
+
+  reopenPreviousWord(now = performance.now()) {
+    if (this.done || this.input.length > 0 || this.wordIndex <= 0) return false;
+
+    const previous = this.history.pop();
+    if (!previous) return false;
+
+    this.wordIndex--;
+    this.input = previous.input;
+    this.events.push({
+      type: 'reopen',
+      wordIndex: this.wordIndex,
+      input: this.input,
+      at: now
+    });
+    this.updateWpm(now);
+    return true;
+  }
+
+  correctCharacterCount() {
+    let correct = 0;
+    for (const word of this.history) correct += word.comparison.correct;
+    correct += this.currentComparison().correct;
+    return correct;
+  }
+
+  completedCharacterCount() {
+    let count = 0;
+    for (let i = 0; i < this.wordIndex; i++) count += this.words[i].length;
+    return count;
   }
 
   finish(at = performance.now()) {
@@ -142,7 +241,8 @@ KQ.TypingSession = class TypingSession {
 
   updateWpm(now = performance.now()) {
     const ms = this.elapsedMs(now);
-    const correct = this.lastAlignment.correct;
+    const correct = this.correctCharacterCount();
+
     if (!this.startTime || correct < 5 || ms < 1000) {
       this.wpm = 0;
       return;
@@ -151,28 +251,37 @@ KQ.TypingSession = class TypingSession {
       this.wpm = 0;
       return;
     }
+
     this.wpm = Math.max(0, Math.round((correct / 5) / (ms / 60000)));
   }
 
   stats(now = performance.now()) {
-    const alignment = this.lastAlignment;
-    const attempts = this.totalKeystrokes;
-    const successful = Math.max(0, attempts - this.totalErrors);
+    const current = this.currentComparison();
+    const correct = this.correctCharacterCount();
+    const attempts = correct + this.totalErrors;
+    const completedWords = this.history.length;
+
     return {
       wpm: this.wpm,
-      accuracy: attempts ? Math.max(0, Math.min(100, Math.round((successful / attempts) * 100))) : 100,
+      accuracy: attempts
+        ? Math.max(0, Math.min(100, Math.round((correct / attempts) * 100)))
+        : 100,
       mistakes: this.totalErrors,
-      currentErrors: alignment.errors,
-      typed: this.value.length,
-      correct: alignment.correct,
+      currentErrors: current.currentErrors,
+      typed: this.input.length,
+      correct,
       seconds: Math.round(this.elapsedMs(now) / 1000),
       done: this.done,
-      progress: this.text.length ? alignment.progress / this.text.length : 0,
+      progress: this.words.length ? Math.min(1, completedWords / this.words.length) : 0,
       expected: this.expected,
-      targetProgress: alignment.progress,
-      targetStates: alignment.targetStates,
-      typedStates: alignment.typedStates,
-      value: this.value
+      currentWord: this.currentWord,
+      currentWordIndex: this.wordIndex,
+      totalWords: this.words.length,
+      input: this.input,
+      targetStates: current.targetStates,
+      typedStates: current.typedStates,
+      history: this.history,
+      eventCount: this.events.length
     };
   }
 };

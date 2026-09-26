@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const build='core-v2-20260925-3';
+const build='core-v3-20260926-1';
 
 const requiredIds=[
   'profile','student-name','save-profile','student-nav','learn','lesson-list',
@@ -28,7 +28,7 @@ for(const file of ['css/style.css','js/engine.js','js/bigchange.js','js/games.js
   assert.ok(html.includes(`${file}?v=${build}`),`asset ${file} is missing cache-busting build version`);
 }
 
-assert.ok(html.includes(`meta name="bigchange-build" content="${build}"`),'missing V2 build marker');
+assert.ok(html.includes(`meta name="bigchange-build" content="${build}"`),'missing V3 build marker');
 
 for(const view of ['learn','practice','challenge','games','progress']){
   assert.match(html,new RegExp(`data-view=["']${view}["']`),`missing navigation button for ${view}`);

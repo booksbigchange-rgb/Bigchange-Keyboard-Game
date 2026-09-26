@@ -2,9 +2,9 @@ name: Classroom core checks
 
 on:
   push:
-    branches: [main, student-flow, typing-core-v2]
+    branches: [main, student-flow, typing-core-v2, typing-core-v3]
   pull_request:
-    branches: [main, student-flow]
+    branches: [main, student-flow, typing-core-v2]
 
 jobs:
   test:

@@ -1,47 +1,40 @@
-# Typing Core V2 Release Checklist
-
-Use this checklist before changing the typing engine or merging V2 into `main`.
+# Typing Core V3 Release Checklist
 
 ## Source of truth
-- Active test branch: `typing-core-v2`
-- Live GitHub Pages source: `typing-core-v2` / `(root)`
-- Expected visible build marker: `core-v2-20260925-2`
-- Release pull request: Draft PR #3
-- `student-flow` is fallback/reference only
-- `keyquest-import` is archive/experiment only
-
-## Before debugging a reported issue
-1. Confirm the footer shows the expected build marker.
-2. If it does not, treat the report as deployment/cache-related first.
-3. If it does, reproduce the exact keystrokes on `typing-core-v2`.
-4. Add a regression test that fails for the report.
-5. Change the smallest possible code path.
-6. Require green engine, DOM, and Chromium checks before considering the fix complete.
+- Active upgrade branch: `typing-core-v3`
+- Expected V3 build marker: `core-v3-20260926-1`
+- V2 remains frozen fallback.
+- V3 release path: Draft PR #4 -> `main`
 
 ## Core acceptance checks
-- Student can type after a wrong character without the keyboard locking.
-- Backspace edits the real textarea naturally.
-- Editing in the middle of existing text works.
-- Insertions, omissions, and substitutions do not cascade the rest of the sentence.
-- Top Row regression sequence `redbyree quiet type power` finishes without freezing.
-- Easy, Medium, and Hard free practice remain separate from Learn lessons.
-- Lesson completion requires at least 90% accuracy.
-- Progress persists after reload.
-- New Student reset clears only this app's local saved state.
-- Challenge timer remains at 60 until the first input.
-- Challenge accepts wrong characters and keeps accepting input.
-- Challenge timer stops when leaving the view and freezes at completion.
-- WPM and accuracy remain finite and bounded.
-- Letter Rain, Bubble Pop, and Rocket Race accept keyboard input.
-- Rocket Race reaches a clean finish.
-- Mobile-width layout has no horizontal overflow.
+- Wrong letters appear immediately.
+- Typing never locks after a mistake.
+- Extra letters remain local to the current word.
+- Space advances exactly one word.
+- Backspace edits the current word naturally.
+- Empty Backspace can reopen the previous committed word.
+- The Top Row sequence `redbyree` shows each extra-letter mistake as it is typed.
+- Seven lessons can complete with correct word-by-word typing.
+- Below 90% does not unlock a lesson.
+- Free Practice does not unlock Learn lessons.
+- Challenge stays at 60 until the first letter.
+- Challenge accepts mistakes continuously.
+- Leaving Challenge stops the timer.
+- Progress survives reload.
+- Games still accept keyboard input.
+- Mobile width has no horizontal overflow.
+
+## Debugging rule
+For any typing report:
+1. Confirm the visible build marker.
+2. Reproduce the exact current word and exact keystrokes.
+3. Add a failing regression test first.
+4. Fix the smallest code path.
+5. Require engine + DOM + Chromium checks to pass.
 
 ## Merge gate
-Do not merge PR #3 until:
-- Push CI passes.
-- PR CI passes.
-- GitHub Pages deployment passes.
-- A real-device test confirms the expected build marker.
-- A real-device test confirms normal typing, mistakes, Backspace, and the 1-minute challenge.
-
-After acceptance, mark PR #3 ready for review and merge it into `main`.
+Do not merge V3 into `main` until:
+- V3 push CI passes.
+- V3 PR CI passes.
+- V3 is intentionally selected for GitHub Pages testing.
+- Real-device testing confirms Top Row, Backspace, Practice, and the 1-minute Challenge.
