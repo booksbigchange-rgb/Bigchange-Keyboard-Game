@@ -2,19 +2,20 @@
 
 A classroom-friendly typing game for BigChange students.
 
-## Current release and deployment path
+## Current release and deployment
 
-- `main` — stable/default branch. Do not develop directly here.
-- `typing-core-v3` — active source branch for the V3 typing engine.
-- `typing-core-v2` — **GitHub Pages live-preview branch**. Despite the historical branch name, it currently carries the tested V3 code.
-- `typing-core-v2-frozen` — preserved pre-V3 V2 fallback.
+- `main` — **audited stable source and default branch**.
+- `typing-core-v2` — **GitHub Pages deployment branch**. The historical branch name remains, but it currently carries the audited V3 release.
+- `typing-core-v3` — V3 development/history branch used to build and validate the current release.
+- `typing-core-v2-frozen` — preserved pre-V3 fallback.
 - `student-flow` — older classroom-flow fallback/reference.
 - `keyquest-import` — old import/experiment branch only.
-- Draft PR #4 — intended V3 path into `main` after final live-device acceptance.
 
-GitHub Pages continues to publish from `typing-core-v2` / repository root. V3 changes are tested on `typing-core-v3` first, then promoted into that live-preview branch.
+GitHub Pages publishes from `typing-core-v2` / repository root.
 
-Current expected live build marker: `core-v3-20260926-3`.
+Current verified live build: `core-v3-20260926-3`.
+
+The release was promoted to `main` after engine tests, Chromium classroom tests, GitHub Pages deployment, and an automated check against the public Pages URL all passed.
 
 ## Typing Core V3
 
@@ -47,16 +48,33 @@ V3 uses a **word-scoped event engine** instead of sentence-wide re-alignment.
 
 ## Automated checks
 
-The active V3/live code is checked with:
+The stable/live code is checked with:
 
 - JavaScript syntax validation
-- Typing-engine regression tests and deterministic fuzzing
+- 25 typing-engine regression/fuzz tests
 - DOM/cache-busting smoke checks
-- Chromium classroom acceptance tests
-- Regression coverage for reported Top Row and Home Row failure states
-- Practice-level, storage, timer, reset, games, and mobile-width checks
+- 34 Chromium classroom acceptance tests
+- no-uncaught-browser-error coverage for primary student flows
+- reported Top Row and Home Row regression coverage
+- all lessons and practice levels
+- storage/corrupt-state/reset behavior
+- challenge timing/restart/finalization
+- game input, game-loop cleanup, and Rocket Race completion
+- mobile-width overflow
+- public GitHub Pages build-marker verification on live-branch pushes
 
 The app has no production build step and no runtime third-party dependency.
+
+## Change policy
+
+For future typing changes:
+
+1. Reproduce the exact student keystrokes.
+2. Add a failing regression test.
+3. Fix the smallest code path.
+4. Require engine, smoke, and Chromium checks to pass.
+5. Promote the tested change to the Pages branch.
+6. Require the public live-build verification to pass before treating the change as deployed.
 
 ## Open-source references
 
