@@ -1,0 +1,69 @@
+name: Classroom core checks
+
+on:
+  push:
+    branches: [main, student-flow, typing-core-v2, typing-core-v3]
+  pull_request:
+    branches: [main, student-flow, typing-core-v2]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classroom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check js/engine.js
+          node --check js/bigchange.js
+          node --check js/games.js
+          node --check tests/typing-engine.test.cjs
+          node --check tests/app-smoke.test.cjs
+          node --check tests/classroom-ui.spec.cjs
+      - name: Run typing engine regression tests
+        run: node tests/typing-engine.test.cjs
+      - name: Run application DOM smoke checks
+        run: node tests/app-smoke.test.cjs
+      - name: Install browser test runner
+        run: npm install --no-save @playwright/test@1.55.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Serve classroom app
+        run: |
+          python3 -m http.server 4173 >/tmp/bigchange-http.log 2>&1 &
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 0.25
+          done
+          cat /tmp/bigchange-http.log
+          exit 1
+      - name: Run classroom browser acceptance tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+        run: npx playwright test tests/classroom-ui.spec.cjs
+      - name: Verify exact build reached GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/typing-core-v2'
+        run: |
+          expected="$(grep -o 'meta name="bigchange-build" content="[^"]*"' index.html | sed -E 's/.*content="([^"]*)"/\1/')"
+          test -n "$expected"
+          echo "Waiting for live Pages build: $expected"
+          for i in {1..36}; do
+            live="$(curl -fsS -H 'Cache-Control: no-cache' "https://booksbigchange-rgb.github.io/Bigchange-Keyboard-Game/?audit=${GITHUB_SHA}" || true)"
+            if printf '%s' "$live" | grep -q "content=\"$expected\""; then
+              echo "Verified live Pages build: $expected"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Expected build $expected did not reach GitHub Pages in time."
+          exit 1
