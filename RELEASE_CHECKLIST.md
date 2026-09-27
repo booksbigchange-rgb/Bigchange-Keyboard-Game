@@ -8,7 +8,7 @@
 - GitHub Pages deployment #100: passed
 - Public live-build marker verification: passed
 - Engine suite: 25 passed
-- Chromium classroom suite: 36 passed
+- Chromium classroom suite: 38 passed
 
 ## Core acceptance checks
 - Wrong letters appear immediately.
@@ -36,6 +36,8 @@
 - Rocket Race finishes at 20 correct keys.
 - Game key handling releases control when leaving Games.
 - Primary flows produce no uncaught page/console errors.
+- Student names are rendered as text and cannot inject markup.
+- Normal student interactions make no network requests after initial app load.
 - Mobile width has no horizontal overflow.
 
 ## Debugging rule
