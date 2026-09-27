@@ -28,14 +28,33 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260926-3');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20260926-3');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260927-4');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20260927-4');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
   await page.goto(BASE_URL+'/tests/typing-engine.html');
   await expect(page).toHaveTitle(/PASS — BigChange V3 Typing Engine Tests/);
   await expect(page.locator('#out')).toContainText('8 passed · 0 failed');
+});
+
+test('classroom controls expose essential accessibility semantics',async({page})=>{
+  await page.goto(BASE_URL);
+  await expect(page.locator('#student-nav')).toHaveAttribute('aria-label','Student sections');
+  await expect(page.locator('#target')).toHaveAttribute('aria-label','Typing target');
+  await expect(page.locator('#challenge-timer')).toHaveAttribute('role','timer');
+  await expect(page.locator('#game-message')).toHaveAttribute('aria-live','polite');
+  await expect(page.locator('#message')).toHaveAttribute('aria-atomic','true');
+});
+
+test('typing field disables browser correction features',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="practice"]').click();
+  const box=page.locator('#typed-display');
+  await expect(box).toHaveAttribute('autocomplete','off');
+  await expect(box).toHaveAttribute('autocapitalize','off');
+  await expect(box).toHaveAttribute('autocorrect','off');
+  await expect(box).toHaveAttribute('spellcheck','false');
 });
 
 test('profile gates the classroom app',async({page})=>{
