@@ -13,7 +13,7 @@ A classroom-friendly typing game for BigChange students.
 
 GitHub Pages publishes from `typing-core-v2` / repository root.
 
-Current verified live build: `core-v3-20260926-3`.
+Current verified live build: `core-v3-20260927-4`.
 
 The release was promoted to `main` after engine tests, Chromium classroom tests, GitHub Pages deployment, and an automated check against the public Pages URL all passed.
 
@@ -53,7 +53,7 @@ The stable/live code is checked with:
 - JavaScript syntax validation
 - 25 typing-engine regression/fuzz tests
 - DOM/cache-busting smoke checks
-- 34 Chromium classroom acceptance tests
+- 36 Chromium classroom acceptance tests
 - no-uncaught-browser-error coverage for primary student flows
 - reported Top Row and Home Row regression coverage
 - all lessons and practice levels
