@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const build='core-v3-20260926-3';
+const build='core-v3-20260927-4';
 
 const requiredIds=[
   'profile','student-name','save-profile','student-nav','learn','lesson-list',
@@ -29,6 +29,12 @@ for(const file of ['css/style.css','js/engine.js','js/bigchange.js','js/games.js
 }
 
 assert.ok(html.includes(`meta name="bigchange-build" content="${build}"`),'missing V3 build marker');
+assert.match(html,/http-equiv="Content-Security-Policy"/,'missing browser security policy');
+assert.match(html,/meta name="referrer" content="no-referrer"/,'missing referrer policy');
+assert.match(html,/id="student-nav" aria-label="Student sections"/,'missing navigation label');
+assert.match(html,/id="typed-display"[^>]*autocorrect="off"/,'typing textarea must disable autocorrect');
+assert.match(html,/id="game-message"[^>]*aria-live="polite"/,'game feedback must be announced');
+assert.match(html,/id="challenge-timer"[^>]*role="timer"/,'challenge timer semantics missing');
 
 for(const view of ['learn','practice','challenge','games','progress']){
   assert.match(html,new RegExp(`data-view=["']${view}["']`),`missing navigation button for ${view}`);
