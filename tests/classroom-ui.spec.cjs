@@ -530,6 +530,35 @@ test('stored progress is sanitized and bounded before rendering',async({page})=>
   await expect(page.locator('#progress-content')).toContainText('Fastest 22 WPM · Highest 99% accuracy');
 });
 
+test('student name is always rendered as text',async({page})=>{
+  await fresh(page);
+  await page.locator('#student-name').fill('<b>XSS</b>');
+  await page.locator('#save-profile').click();
+  await expect(page.locator('#welcome')).toContainText('<b>XSS</b>');
+  await expect(page.locator('#welcome b')).toHaveCount(0);
+  expect(await page.evaluate(()=>window.__xss||null)).toBeNull();
+});
+
+test('normal student interactions make no network requests after app load',async({page})=>{
+  await createStudent(page,'Privacy Check');
+  const requests=[];
+  page.on('request',request=>requests.push(request.url()));
+
+  await page.locator('[data-view="practice"]').click();
+  await page.keyboard.type('asdf');
+  await page.keyboard.press('Space');
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('Practice');
+  await page.locator('[data-view="games"]').click();
+  await page.locator('[data-game="bubble"]').click();
+  const key=(await page.locator('#game-board').textContent()).trim();
+  await page.keyboard.type(key);
+  await page.locator('[data-view="progress"]').click();
+
+  expect(requests).toEqual([]);
+});
+
 test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
