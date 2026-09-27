@@ -376,7 +376,7 @@ function renderProgress(){
   const count=state.completed.length;
   $('#progress-content').innerHTML=
     '<p><strong>'+count+' of '+lessons.length+' lessons completed</strong></p>'+
-    '<progress value="'+count+'" max="'+lessons.length+'"></progress>'+
+    '<progress value="'+count+'" max="'+lessons.length+'" aria-label="Lessons completed"></progress>'+
     '<p>'+(state.last?'Last result: '+state.last.wpm+' WPM · '+state.last.accuracy+'% accuracy':'Complete a lesson to record your first result.')+'</p>'+
     (state.best?'<p>Best challenge results: <strong>Fastest '+state.best.wpm+' WPM · Highest '+state.best.accuracy+'% accuracy</strong></p>':'');
 
