@@ -53,7 +53,7 @@ The stable/live code is checked with:
 - JavaScript syntax validation
 - 25 typing-engine regression/fuzz tests
 - DOM/cache-busting smoke checks
-- 36 Chromium classroom acceptance tests
+- 38 Chromium classroom acceptance tests
 - no-uncaught-browser-error coverage for primary student flows
 - reported Top Row and Home Row regression coverage
 - all lessons and practice levels
@@ -61,6 +61,7 @@ The stable/live code is checked with:
 - challenge timing/restart/finalization
 - game input, game-loop cleanup, and Rocket Race completion
 - mobile-width overflow
+- student-name XSS resistance and no-network-after-load privacy checks
 - public GitHub Pages build-marker verification on live-branch pushes
 
 The app has no production build step and no runtime third-party dependency.
