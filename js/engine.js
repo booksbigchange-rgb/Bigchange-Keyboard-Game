@@ -386,6 +386,8 @@ KQ.TypingSession = class TypingSession {
       input: this.input,
       targetStates: current.targetStates,
       typedStates: current.typedStates,
+      targetProgress: current.targetProgress,
+      operations: current.operations,
       history: this.history,
       eventCount: this.events.length
     };
