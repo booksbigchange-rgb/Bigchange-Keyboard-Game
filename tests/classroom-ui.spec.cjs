@@ -137,6 +137,29 @@ test('reported Home Row screenshot state has one visible extra-letter mistake',a
   await expect(page.locator('#target .typed-extra')).toHaveText('i');
 });
 
+test('middle insertion highlights the actual extra character',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+
+  await box.fill('asxdf');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#accuracy')).toHaveText('80%');
+  await expect(page.locator('#target .typed-extra')).toHaveText('x');
+  await expect(page.locator('#target .typed-extra')).not.toHaveText('f');
+});
+
+test('middle omission is counted once after commit',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  await page.locator('#typed-display').fill('asf');
+  await page.keyboard.press('Space');
+
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#accuracy')).toHaveText('75%');
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+});
+
 test('mid-word editing uses the real textarea without jumping',async({page})=>{
   await createStudent(page);
   await page.locator('[data-lesson="0"]').click();
