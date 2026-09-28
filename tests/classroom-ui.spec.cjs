@@ -559,6 +559,107 @@ test('normal student interactions make no network requests after app load',async
   expect(requests).toEqual([]);
 });
 
+test('mobile-style Space commits without a keydown event',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asdf');
+
+  const allowed=await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'insertText',
+      data:' '
+    });
+    const allowed=el.dispatchEvent(before);
+    if(allowed){
+      el.value+=' ';
+      el.dispatchEvent(new InputEvent('input',{
+        bubbles:true,
+        inputType:'insertText',
+        data:' '
+      }));
+    }
+    return allowed;
+  });
+
+  expect(allowed).toBe(false);
+  await expect(box).toHaveValue('');
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+});
+
+test('mobile-style empty Backspace reopens the previous word without keydown',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asdf');
+
+  await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'insertText',
+      data:' '
+    });
+    const allowed=el.dispatchEvent(before);
+    if(allowed){
+      el.value+=' ';
+      el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:' '}));
+    }
+  });
+
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+  await expect(box).toHaveValue('');
+
+  const allowed=await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'deleteContentBackward'
+    });
+    return el.dispatchEvent(before);
+  });
+
+  expect(allowed).toBe(false);
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#target .current-word')).toContainText('asdf');
+});
+
+test('IME composition text is not counted before composition finishes',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  const box=page.locator('#typed-display');
+
+  await box.evaluate(el=>{
+    el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));
+    el.value='x';
+    el.dispatchEvent(new InputEvent('input',{
+      bubbles:true,
+      inputType:'insertCompositionText',
+      data:'x',
+      isComposing:true
+    }));
+  });
+
+  await expect(page.locator('#mistakes')).toHaveText('0');
+
+  await box.evaluate(el=>{
+    el.value='r';
+    el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'r'}));
+    el.dispatchEvent(new InputEvent('input',{
+      bubbles:true,
+      inputType:'insertText',
+      data:'r',
+      isComposing:false
+    }));
+  });
+
+  await expect(box).toHaveValue('r');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
+});
+
 test('mobile layout has no horizontal overflow',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await createStudent(page);
