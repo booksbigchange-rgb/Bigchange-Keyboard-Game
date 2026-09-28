@@ -412,18 +412,25 @@ typingBox.addEventListener('beforeinput',event=>{
   }
 });
 
-// Fallback for older browsers that do not expose beforeinput.
+// Backspace on an empty input is handled on keydown on every browser.
+// WebKit can expose beforeinput support but omit the empty-field backward
+// deletion event. Preventing the keydown after reopening also avoids a second
+// deletion from the browser's default action.
 typingBox.addEventListener('keydown',event=>{
-  if(supportsBeforeInput||!typingActive())return;
+  if(!typingActive())return;
+
+  if(event.key==='Backspace'&&typingBox.value.length===0&&reopenPreviousWordFromInput()){
+    event.preventDefault();
+    return;
+  }
+
+  // Space/Enter use beforeinput when available so virtual keyboards that do
+  // not emit a normal keydown still commit words correctly.
+  if(supportsBeforeInput)return;
 
   if(event.key===' '||event.key==='Enter'){
     event.preventDefault();
     commitCurrentWord(event.key===' '?'space':'enter');
-    return;
-  }
-
-  if(event.key==='Backspace'&&typingBox.value.length===0&&reopenPreviousWordFromInput()){
-    event.preventDefault();
   }
 });
 
