@@ -150,7 +150,7 @@ function changeDetail(previousValue, nextValue, target) {
   for (let i = 0; i < deleted.length; i++) {
     events.push({
       type: 'delete',
-      charIndex: start,
+      charIndex: start + i,
       char: deleted[i]
     });
   }
@@ -179,10 +179,11 @@ KQ.TypingSession = class TypingSession {
     this.input = '';
     this.history = [];
     this.events = [];
-    // Wrong key presses stay historical for accuracy.
-    // Missed letters belong to committed words and can be undone by reopening.
-    this.rawErrors = 0;
-    this.committedMisses = 0;
+    // Only wrong characters that the student actually removes are frozen as
+    // historical accuracy penalties. Active text is allowed to realign inside
+    // the current word so one insertion/omission cannot cascade into many
+    // fake errors.
+    this.correctedErrors = 0;
     this.totalInserted = 0;
     this.startTime = null;
     this.endTime = null;
@@ -214,23 +215,26 @@ KQ.TypingSession = class TypingSession {
 
     const previous = this.input;
     const target = this.currentWord ?? '';
+    const previousComparison = compareWord(target, previous);
     const nextComparison = compareWord(target, value);
     const detail = changeDetail(previous, value, target);
     let insertedErrors = 0;
 
     for (const event of detail) {
-      if (event.type === 'insert') {
-        event.correct = nextComparison.typedStates[event.charIndex] === KQ.CORRECT;
-      }
-      const logged = { ...event, wordIndex: this.wordIndex, at: now };
-      this.events.push(logged);
-      if (event.type === 'insert') {
-        this.totalInserted++;
-        if (!event.correct) {
-          this.rawErrors++;
-          insertedErrors++;
+      if (event.type === 'delete') {
+        if (previousComparison.typedStates[event.charIndex] === KQ.WRONG) {
+          this.correctedErrors++;
         }
       }
+
+      if (event.type === 'insert') {
+        event.correct = nextComparison.typedStates[event.charIndex] === KQ.CORRECT;
+        this.totalInserted++;
+        if (!event.correct) insertedErrors++;
+      }
+
+      const logged = { ...event, wordIndex: this.wordIndex, at: now };
+      this.events.push(logged);
     }
 
     this.input = value;
@@ -259,7 +263,6 @@ KQ.TypingSession = class TypingSession {
     // Omitted target characters are recorded at commit time. Insertions and
     // substitutions were already recorded from actual input events.
     const missed = comparison.omissions;
-    this.committedMisses += missed;
 
     this.history.push({
       target,
@@ -299,7 +302,6 @@ KQ.TypingSession = class TypingSession {
     if (!previous) return false;
 
     this.wordIndex--;
-    this.committedMisses = Math.max(0, this.committedMisses - (previous.missed || 0));
     this.input = previous.input;
     this.events.push({
       type: 'reopen',
@@ -355,10 +357,10 @@ KQ.TypingSession = class TypingSession {
   stats(now = performance.now()) {
     const current = this.currentComparison();
     const correct = this.correctCharacterCount();
-    const attemptErrors = this.rawErrors + this.committedMisses;
-    const attempts = correct + attemptErrors;
     const committedMistakes = this.history.reduce((sum, word) => sum + (word.mistakes || 0), 0);
     const visibleMistakes = committedMistakes + current.currentErrors;
+    const attemptErrors = this.correctedErrors + visibleMistakes;
+    const attempts = correct + attemptErrors;
     const completedWords = this.history.length;
 
     return {
