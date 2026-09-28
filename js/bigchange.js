@@ -156,19 +156,34 @@ function renderWord(word,index,stats){
   }
 
   let html='<span class="reference-word current-word">';
-  for(let i=0;i<word.length;i++){
-    const charState=stats.targetStates[i];
+  let nextTarget=0;
+
+  for(const operation of stats.operations||[]){
+    if(operation.type==='insert'){
+      html+='<span class="typed-extra">'+esc(stats.input[operation.typedIndex]||'')+'</span>';
+      continue;
+    }
+
+    const targetIndex=operation.targetIndex;
+    while(nextTarget<targetIndex){
+      const classes=nextTarget===stats.targetProgress?['reference-current']:[];
+      html+='<span class="'+classes.join(' ')+'">'+esc(word[nextTarget])+'</span>';
+      nextTarget++;
+    }
+
     const classes=[];
-    if(charState===KQ.CORRECT)classes.push('reference-correct');
-    if(charState===KQ.WRONG)classes.push('reference-wrong');
-    if(i===stats.input.length)classes.push('reference-current');
+    if(operation.type==='match')classes.push('reference-correct');
+    if(operation.type==='substitute'||operation.type==='omit')classes.push('reference-wrong');
+    html+='<span class="'+classes.join(' ')+'">'+esc(word[targetIndex])+'</span>';
+    nextTarget=targetIndex+1;
+  }
+
+  for(let i=nextTarget;i<word.length;i++){
+    const classes=i===stats.targetProgress?['reference-current']:[];
     html+='<span class="'+classes.join(' ')+'">'+esc(word[i])+'</span>';
   }
-  if(stats.input.length>word.length){
-    const extra=stats.input.slice(word.length);
-    html+='<span class="typed-extra">'+esc(extra)+'</span>';
-  }
-  if(stats.input.length>=word.length)html+='<span class="word-caret">▏</span>';
+
+  if(stats.targetProgress>=word.length)html+='<span class="word-caret">▏</span>';
   html+='</span>';
   return html;
 }
