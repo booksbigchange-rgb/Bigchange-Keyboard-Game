@@ -30,6 +30,7 @@ jobs:
           node --check tests/typing-engine.test.cjs
           node --check tests/app-smoke.test.cjs
           node --check tests/classroom-ui.spec.cjs
+          node --check playwright.config.cjs
       - name: Run typing engine regression tests
         run: node tests/typing-engine.test.cjs
       - name: Run application DOM smoke checks
@@ -37,7 +38,7 @@ jobs:
       - name: Install browser test runner
         run: npm install --no-save --ignore-scripts @playwright/test@1.55.0
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Serve classroom app
         run: |
           python3 -m http.server 4173 >/tmp/bigchange-http.log 2>&1 &
