@@ -323,38 +323,21 @@ document.querySelectorAll('[data-level]').forEach(button=>{
   };
 });
 
-$('#typed-display').addEventListener('paste',event=>event.preventDefault());
+const typingBox=$('#typed-display');
+const supportsBeforeInput='onbeforeinput' in typingBox;
+let composingInput=false;
 
-$('#typed-display').addEventListener('keydown',event=>{
-  if(!session||session.done||$('#practice').style.display!=='block')return;
+function typingActive(){
+  return !!session&&!session.done&&$('#practice').style.display==='block';
+}
 
-  if(event.key===' '||event.key==='Enter'){
-    event.preventDefault();
-    commitCurrentWord(event.key===' '?'space':'enter');
-    return;
-  }
-
-  if(event.key==='Backspace'&&$('#typed-display').value.length===0){
-    if(session.reopenPreviousWord(performance.now())){
-      event.preventDefault();
-      $('#typed-display').value=session.input;
-      $('#message').textContent='Previous word reopened.';
-      render();
-      requestAnimationFrame(()=>{
-        const box=$('#typed-display');
-        box.setSelectionRange(box.value.length,box.value.length);
-      });
-    }
-  }
-});
-
-$('#typed-display').addEventListener('input',event=>{
-  if(!session||session.done||$('#practice').style.display!=='block')return;
+function applyTypedValue(value,now=performance.now()){
+  if(!typingActive())return 'ignored';
 
   const beginChallenge=challengeMode&&!challengeRunning;
-  const result=session.update(event.target.value,performance.now());
+  const result=session.update(value,now);
 
-  if(event.target.value!==session.input)event.target.value=session.input;
+  if(typingBox.value!==session.input)typingBox.value=session.input;
   if(beginChallenge&&session.startTime!==null&&!session.done)startChallengeClock();
 
   if(!challengeMode&&result!=='complete'){
@@ -368,6 +351,70 @@ $('#typed-display').addEventListener('input',event=>{
   }
 
   render();
+  return result;
+}
+
+function reopenPreviousWordFromInput(){
+  if(!typingActive()||typingBox.value.length!==0)return false;
+  if(!session.reopenPreviousWord(performance.now()))return false;
+
+  typingBox.value=session.input;
+  $('#message').textContent='Previous word reopened.';
+  render();
+  requestAnimationFrame(()=>{
+    typingBox.setSelectionRange(typingBox.value.length,typingBox.value.length);
+    typingBox.focus();
+  });
+  return true;
+}
+
+typingBox.addEventListener('paste',event=>event.preventDefault());
+
+typingBox.addEventListener('compositionstart',()=>{
+  composingInput=true;
+});
+
+typingBox.addEventListener('compositionend',event=>{
+  composingInput=false;
+  applyTypedValue(event.target.value,performance.now());
+});
+
+typingBox.addEventListener('beforeinput',event=>{
+  if(!typingActive()||composingInput||event.isComposing)return;
+
+  const type=event.inputType||'';
+  const isSpace=type==='insertText'&&typeof event.data==='string'&&/\s/.test(event.data);
+  const isEnter=type==='insertLineBreak'||type==='insertParagraph';
+
+  if(isSpace||isEnter){
+    event.preventDefault();
+    commitCurrentWord(isEnter?'enter':'space');
+    return;
+  }
+
+  if(type==='deleteContentBackward'&&typingBox.value.length===0){
+    if(reopenPreviousWordFromInput())event.preventDefault();
+  }
+});
+
+// Fallback for older browsers that do not expose beforeinput.
+typingBox.addEventListener('keydown',event=>{
+  if(supportsBeforeInput||!typingActive())return;
+
+  if(event.key===' '||event.key==='Enter'){
+    event.preventDefault();
+    commitCurrentWord(event.key===' '?'space':'enter');
+    return;
+  }
+
+  if(event.key==='Backspace'&&typingBox.value.length===0&&reopenPreviousWordFromInput()){
+    event.preventDefault();
+  }
+});
+
+typingBox.addEventListener('input',event=>{
+  if(!typingActive()||composingInput||event.isComposing)return;
+  applyTypedValue(event.target.value,performance.now());
 });
 
 $('#start').onclick=start;
