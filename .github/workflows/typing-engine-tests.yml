@@ -37,7 +37,7 @@ jobs:
         run: node tests/app-smoke.test.cjs
       - name: Install browser test runner
         run: npm install --no-save --ignore-scripts @playwright/test@1.55.0
-      - name: Install Chromium
+      - name: Install browser engines
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Serve classroom app
         run: |
