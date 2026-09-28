@@ -202,6 +202,25 @@ test('empty session is safely complete with bounded stats',()=>{
   eq(st.wpm,0);
 });
 
+test('single middle insertion counts as one mistake',()=>{
+  const s=new KQ.TypingSession('asdf jkl;');
+  s.update('asxdf',1000);
+  eq(s.stats(1000).currentErrors,1);
+  eq(s.stats(1000).mistakes,1);
+  eq(s.stats(1000).attemptErrors,1);
+  eq(s.stats(1000).accuracy,80);
+});
+
+test('single middle omission counts once when the word is committed',()=>{
+  const s=new KQ.TypingSession('asdf jkl;');
+  s.update('asf',1000);
+  s.commitWord(1100,'space');
+  eq(s.history[0].mistakes,1);
+  eq(s.stats(1100).mistakes,1);
+  eq(s.stats(1100).attemptErrors,1);
+  eq(s.stats(1100).accuracy,75);
+});
+
 test('event log records inserts deletes and commits',()=>{
   const s=new KQ.TypingSession('red tree');
   s.update('rex',1000);
