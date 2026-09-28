@@ -52,7 +52,7 @@ test('typing field disables browser correction features',async({page})=>{
   await page.locator('[data-view="practice"]').click();
   const box=page.locator('#typed-display');
   await expect(box).toHaveAttribute('autocomplete','off');
-  await expect(box).toHaveAttribute('autocapitalize','off');
+  await expect(box).toHaveAttribute('autocapitalize','none');
   await expect(box).toHaveAttribute('autocorrect','off');
   await expect(box).toHaveAttribute('spellcheck','false');
 });
