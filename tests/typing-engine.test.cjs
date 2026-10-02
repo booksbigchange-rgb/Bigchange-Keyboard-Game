@@ -283,11 +283,50 @@ test('deterministic fuzz preserves word-session invariants',()=>{
       }
       const st=s.stats(1000+step*100);
       assert.ok(st.currentWordIndex>=0&&st.currentWordIndex<=st.totalWords);
+      eq(s.inputErrors.length,s.input.length);
       assert.ok(st.accuracy>=0&&st.accuracy<=100);
       assert.ok(st.mistakes>=0);
       assert.ok(Number.isFinite(st.wpm)&&st.wpm>=0);
     }
   }
+});
+
+test('clearing correct letters after a middle deletion keeps full accuracy',()=>{
+  const s=new KQ.TypingSession('asdf');
+  for(const value of ['a','as','s','','asdf'])s.update(value,1000);
+  eq(s.stats(1000).attemptErrors,0);
+  eq(s.stats(1000).accuracy,100);
+});
+
+test('correct letters keep their provenance when a committed word is reopened',()=>{
+  const s=new KQ.TypingSession('asdf next');
+  s.update('asdf',1000);s.commitWord(1100);
+  eq(s.reopenPreviousWord(1200),true);
+  for(const value of ['as','s','','asdf'])s.update(value,1300);
+  eq(s.stats(1300).attemptErrors,0);
+  eq(s.stats(1300).accuracy,100);
+});
+
+test('a wrong character proven correct by continuation is not a deleted mistake',()=>{
+  const s=new KQ.TypingSession('asdf next');
+  for(const value of ['s','sd','sdf','','asdf'])s.update(value,1000);
+  eq(s.stats(1000).attemptErrors,0);
+});
+
+test('reopening retains penalties for genuine wrong characters',()=>{
+  const s=new KQ.TypingSession('asdf next');
+  s.update('asxf',1000);s.commitWord(1100);
+  s.reopenPreviousWord(1200);
+  s.update('asdf',1300);
+  eq(s.stats(1300).attemptErrors,1);
+  eq(s.stats(1300).accuracy,80);
+});
+
+test('clearing mixed correct and wrong letters counts only the wrong attempt',()=>{
+  const s=new KQ.TypingSession('asdf next');
+  for(const value of ['a','as','asx','sx','','asdf'])s.update(value,1000);
+  eq(s.stats(1000).attemptErrors,1);
+  eq(s.stats(1000).accuracy,80);
 });
 
 console.log('\n'+passed+' passed · '+failed+' failed');

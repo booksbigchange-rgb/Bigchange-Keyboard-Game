@@ -28,8 +28,8 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260928-5');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20260928-5');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261002-6');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20261002-6');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
@@ -135,6 +135,22 @@ test('reported Home Row screenshot state has one visible extra-letter mistake',a
   await expect(page.locator('#mistakes')).toHaveText('1');
   await expect(page.locator('#accuracy')).toHaveText('89%');
   await expect(page.locator('#target .typed-extra')).toHaveText('i');
+});
+
+test('deleting correct text after a middle edit preserves accuracy',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await page.keyboard.type('as');
+  await box.evaluate(el=>el.setSelectionRange(0,1));
+  await page.keyboard.press('Backspace');
+  await expect(box).toHaveValue('s');
+  await box.selectText();
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('asdf');
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
 });
 
 test('middle insertion highlights the actual extra character',async({page})=>{

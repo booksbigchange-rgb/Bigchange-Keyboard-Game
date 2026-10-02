@@ -177,6 +177,10 @@ KQ.TypingSession = class TypingSession {
     this.words = splitWords(this.text);
     this.wordIndex = 0;
     this.input = '';
+    // Track unresolved wrong attempts with the characters through edits.
+    // A character once proven correct must not become a historical penalty
+    // just because a later deletion changes the prefix alignment.
+    this.inputErrors = [];
     this.history = [];
     this.events = [];
     // Only wrong characters that the student actually removes are frozen as
@@ -222,7 +226,8 @@ KQ.TypingSession = class TypingSession {
 
     for (const event of detail) {
       if (event.type === 'delete') {
-        if (previousComparison.typedStates[event.charIndex] === KQ.WRONG) {
+        if (this.inputErrors[event.charIndex] &&
+            previousComparison.typedStates[event.charIndex] === KQ.WRONG) {
           this.correctedErrors++;
         }
       }
@@ -237,6 +242,15 @@ KQ.TypingSession = class TypingSession {
       this.events.push(logged);
     }
 
+    const deleted = detail.filter(event => event.type === 'delete');
+    const inserted = detail.filter(event => event.type === 'insert');
+    if (deleted.length || inserted.length) {
+      const start = (deleted[0] ?? inserted[0]).charIndex;
+      this.inputErrors.splice(start, deleted.length, ...inserted.map(event => !event.correct));
+    }
+    for (let i = 0; i < value.length; i++) {
+      if (nextComparison.typedStates[i] === KQ.CORRECT) this.inputErrors[i] = false;
+    }
     this.input = value;
     this.updateWpm(now);
 
@@ -267,6 +281,7 @@ KQ.TypingSession = class TypingSession {
     this.history.push({
       target,
       input: this.input,
+      inputErrors: this.inputErrors.slice(),
       correct: this.input === target,
       comparison,
       missed,
@@ -285,6 +300,7 @@ KQ.TypingSession = class TypingSession {
 
     this.wordIndex++;
     this.input = '';
+    this.inputErrors = [];
 
     if (this.wordIndex >= this.words.length) {
       this.finish(now);
@@ -303,6 +319,7 @@ KQ.TypingSession = class TypingSession {
 
     this.wordIndex--;
     this.input = previous.input;
+    this.inputErrors = previous.inputErrors.slice();
     this.events.push({
       type: 'reopen',
       wordIndex: this.wordIndex,

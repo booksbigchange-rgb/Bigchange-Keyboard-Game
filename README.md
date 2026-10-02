@@ -11,7 +11,7 @@ A classroom-friendly typing game for BigChange students.
 
 Future changes should start from `main`, prove the bug with a regression test, merge to `main`, then mirror that exact commit to the Pages branch. Do not maintain a separate live code history.
 
-Current release candidate build: `core-v3-20260928-5`.
+Current release candidate build: `core-v3-20261002-6`.
 
 ## Why earlier versions kept failing
 
@@ -24,7 +24,7 @@ The failures were systemic, not one typo:
 5. CI ran only Chromium, hiding a real WebKit empty-Backspace failure.
 6. `main` and the Pages branch were maintained through separate commit histories, creating deployment/PR confusion even when file trees matched.
 
-Build 5 addresses all six.
+Build 5 addresses all six. Build 6 also preserves correct-letter provenance through edits so clearing correct text cannot freeze false accuracy penalties.
 
 ## Typing Core V3
 
@@ -43,12 +43,12 @@ Build 5 addresses all six.
 
 The release gate now includes:
 
-- 27 engine regression/fuzz tests
+- 32 engine regression/fuzz tests
 - DOM/security smoke checks
-- 43 classroom scenarios in Chromium
-- the same 43 scenarios in Firefox
-- the same 43 scenarios in WebKit
-- **129 browser checks total**
+- 44 classroom scenarios in Chromium
+- the same 44 scenarios in Firefox
+- the same 44 scenarios in WebKit
+- **132 browser checks total**
 - mobile-style Space without keydown
 - mobile-style empty Backspace
 - IME/composition input

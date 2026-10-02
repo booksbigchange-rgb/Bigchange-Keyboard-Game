@@ -1,12 +1,12 @@
 # Typing Core V3 Release Checklist
 
-## Build 5 root-cause gate
-- Expected build marker: `core-v3-20260928-5`
-- Engine tests: 27
-- Chromium scenarios: 43
-- Firefox scenarios: 43
-- WebKit scenarios: 43
-- Total browser checks: 129
+## Build 6 accuracy-fix gate
+- Expected build marker: `core-v3-20261002-6`
+- Engine tests: 32
+- Chromium scenarios: 44
+- Firefox scenarios: 44
+- WebKit scenarios: 44
+- Total browser checks: 132
 
 ## Input invariants
 - Wrong letters appear immediately.
@@ -25,6 +25,8 @@
 - The extra character shown in the target is the actual extra character.
 - Correcting a visible wrong character clears the visible Mistake.
 - A genuinely corrected wrong attempt may still reduce Accuracy.
+- Clearing correctly typed letters after a middle edit does not freeze false accuracy penalties.
+- Reopening a word preserves character provenance for historical penalties.
 - Reopening a committed word does not double-count omissions.
 - Accuracy stays between 0 and 100.
 - WPM stays finite and non-negative.
