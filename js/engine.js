@@ -18,27 +18,113 @@ function splitWords(text) {
   return String(text ?? '').trim().split(/\s+/).filter(Boolean);
 }
 
-function compareWord(target, typed) {
+function compareWord(target, typed, complete = false) {
   target = String(target ?? '');
   typed = String(typed ?? '');
-  const targetStates = new Array(target.length).fill(KQ.PENDING);
-  const typedStates = new Array(typed.length).fill(KQ.PENDING);
-  let correct = 0;
-  let currentErrors = 0;
 
-  for (let i = 0; i < typed.length; i++) {
-    if (i < target.length && typed[i] === target[i]) {
-      typedStates[i] = KQ.CORRECT;
-      targetStates[i] = KQ.CORRECT;
-      correct++;
-    } else {
-      typedStates[i] = KQ.WRONG;
-      if (i < target.length) targetStates[i] = KQ.WRONG;
-      currentErrors++;
+  const m = target.length;
+  const n = typed.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const substitution = dp[i - 1][j - 1] + (target[i - 1] === typed[j - 1] ? 0 : 1);
+      const omission = dp[i - 1][j] + 1;
+      const insertion = dp[i][j - 1] + 1;
+      dp[i][j] = Math.min(substitution, omission, insertion);
     }
   }
 
-  return { targetStates, typedStates, correct, currentErrors };
+  let targetProgress = m;
+  if (!complete) {
+    let best = dp[0][n];
+    targetProgress = 0;
+    for (let i = 1; i <= m; i++) {
+      if (dp[i][n] < best) {
+        best = dp[i][n];
+        targetProgress = i;
+      }
+      // On equal cost, keep the smaller target prefix. A wrong key therefore
+      // does not silently advance the expected target character. More input
+      // can later prove that the key was a substitution instead of an extra.
+    }
+  }
+
+  const targetStates = new Array(m).fill(KQ.PENDING);
+  const typedStates = new Array(n).fill(KQ.PENDING);
+  const operations = [];
+  let correct = 0;
+  let omissions = 0;
+  let insertions = 0;
+  let substitutions = 0;
+  let i = targetProgress;
+  let j = n;
+
+  while (i > 0 || j > 0) {
+    if (
+      i > 0 &&
+      j > 0 &&
+      target[i - 1] === typed[j - 1] &&
+      dp[i][j] === dp[i - 1][j - 1]
+    ) {
+      targetStates[i - 1] = KQ.CORRECT;
+      typedStates[j - 1] = KQ.CORRECT;
+      operations.push({ type: 'match', targetIndex: i - 1, typedIndex: j - 1 });
+      correct++;
+      i--;
+      j--;
+      continue;
+    }
+
+    // Prefer treating an ambiguous wrong character as an insertion. This
+    // keeps the expected target character in place until later input proves
+    // that the character was actually a substitution.
+    if (j > 0 && dp[i][j] === dp[i][j - 1] + 1) {
+      typedStates[j - 1] = KQ.WRONG;
+      operations.push({ type: 'insert', typedIndex: j - 1 });
+      insertions++;
+      j--;
+      continue;
+    }
+
+    if (i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + 1) {
+      targetStates[i - 1] = KQ.WRONG;
+      typedStates[j - 1] = KQ.WRONG;
+      operations.push({ type: 'substitute', targetIndex: i - 1, typedIndex: j - 1 });
+      substitutions++;
+      i--;
+      j--;
+      continue;
+    }
+
+    if (i > 0 && dp[i][j] === dp[i - 1][j] + 1) {
+      targetStates[i - 1] = KQ.WRONG;
+      operations.push({ type: 'omit', targetIndex: i - 1 });
+      omissions++;
+      i--;
+      continue;
+    }
+
+    // Defensive escape: the DP matrix should always provide one valid step.
+    break;
+  }
+
+  operations.reverse();
+
+  return {
+    targetStates,
+    typedStates,
+    correct,
+    currentErrors: dp[targetProgress][n],
+    targetProgress,
+    omissions,
+    insertions,
+    substitutions,
+    operations
+  };
 }
 
 function changeDetail(previousValue, nextValue, target) {
@@ -64,7 +150,7 @@ function changeDetail(previousValue, nextValue, target) {
   for (let i = 0; i < deleted.length; i++) {
     events.push({
       type: 'delete',
-      charIndex: start,
+      charIndex: start + i,
       char: deleted[i]
     });
   }
@@ -91,12 +177,17 @@ KQ.TypingSession = class TypingSession {
     this.words = splitWords(this.text);
     this.wordIndex = 0;
     this.input = '';
+    // Track unresolved wrong attempts with the characters through edits.
+    // A character once proven correct must not become a historical penalty
+    // just because a later deletion changes the prefix alignment.
+    this.inputErrors = [];
     this.history = [];
     this.events = [];
-    // Wrong key presses stay historical for accuracy.
-    // Missed letters belong to committed words and can be undone by reopening.
-    this.rawErrors = 0;
-    this.committedMisses = 0;
+    // Only wrong characters that the student actually removes are frozen as
+    // historical accuracy penalties. Active text is allowed to realign inside
+    // the current word so one insertion/omission cannot cascade into many
+    // fake errors.
+    this.correctedErrors = 0;
     this.totalInserted = 0;
     this.startTime = null;
     this.endTime = null;
@@ -113,7 +204,7 @@ KQ.TypingSession = class TypingSession {
   get expected() {
     const word = this.currentWord;
     if (word === null) return null;
-    return word[this.input.length] ?? null;
+    return word[this.currentComparison().targetProgress] ?? null;
   }
 
   currentComparison() {
@@ -127,21 +218,39 @@ KQ.TypingSession = class TypingSession {
     if (this.startTime === null && value.length > 0) this.startTime = now;
 
     const previous = this.input;
-    const detail = changeDetail(previous, value, this.currentWord ?? '');
+    const target = this.currentWord ?? '';
+    const previousComparison = compareWord(target, previous);
+    const nextComparison = compareWord(target, value);
+    const detail = changeDetail(previous, value, target);
     let insertedErrors = 0;
 
     for (const event of detail) {
-      const logged = { ...event, wordIndex: this.wordIndex, at: now };
-      this.events.push(logged);
-      if (event.type === 'insert') {
-        this.totalInserted++;
-        if (!event.correct) {
-          this.rawErrors++;
-          insertedErrors++;
+      if (event.type === 'delete') {
+        if (this.inputErrors[event.charIndex] &&
+            previousComparison.typedStates[event.charIndex] === KQ.WRONG) {
+          this.correctedErrors++;
         }
       }
+
+      if (event.type === 'insert') {
+        event.correct = nextComparison.typedStates[event.charIndex] === KQ.CORRECT;
+        this.totalInserted++;
+        if (!event.correct) insertedErrors++;
+      }
+
+      const logged = { ...event, wordIndex: this.wordIndex, at: now };
+      this.events.push(logged);
     }
 
+    const deleted = detail.filter(event => event.type === 'delete');
+    const inserted = detail.filter(event => event.type === 'insert');
+    if (deleted.length || inserted.length) {
+      const start = (deleted[0] ?? inserted[0]).charIndex;
+      this.inputErrors.splice(start, deleted.length, ...inserted.map(event => !event.correct));
+    }
+    for (let i = 0; i < value.length; i++) {
+      if (nextComparison.typedStates[i] === KQ.CORRECT) this.inputErrors[i] = false;
+    }
     this.input = value;
     this.updateWpm(now);
 
@@ -163,20 +272,20 @@ KQ.TypingSession = class TypingSession {
     if (this.startTime === null && this.input.length > 0) this.startTime = now;
 
     const target = this.currentWord ?? '';
-    const comparison = compareWord(target, this.input);
+    const comparison = compareWord(target, this.input, true);
 
-    // Characters the student never typed are recorded when the word is
-    // committed. They are mistakes, but they do not fabricate keypresses.
-    const missed = Math.max(0, target.length - this.input.length);
-    this.committedMisses += missed;
+    // Omitted target characters are recorded at commit time. Insertions and
+    // substitutions were already recorded from actual input events.
+    const missed = comparison.omissions;
 
     this.history.push({
       target,
       input: this.input,
+      inputErrors: this.inputErrors.slice(),
       correct: this.input === target,
       comparison,
       missed,
-      mistakes: comparison.currentErrors + missed
+      mistakes: comparison.currentErrors
     });
     this.events.push({
       type: 'commit',
@@ -191,6 +300,7 @@ KQ.TypingSession = class TypingSession {
 
     this.wordIndex++;
     this.input = '';
+    this.inputErrors = [];
 
     if (this.wordIndex >= this.words.length) {
       this.finish(now);
@@ -208,8 +318,8 @@ KQ.TypingSession = class TypingSession {
     if (!previous) return false;
 
     this.wordIndex--;
-    this.committedMisses = Math.max(0, this.committedMisses - (previous.missed || 0));
     this.input = previous.input;
+    this.inputErrors = previous.inputErrors.slice();
     this.events.push({
       type: 'reopen',
       wordIndex: this.wordIndex,
@@ -249,7 +359,7 @@ KQ.TypingSession = class TypingSession {
     const ms = this.elapsedMs(now);
     const correct = this.correctCharacterCount();
 
-    if (!this.startTime || correct < 5 || ms < 1000) {
+    if (this.startTime === null || correct < 5 || ms < 1000) {
       this.wpm = 0;
       return;
     }
@@ -264,10 +374,10 @@ KQ.TypingSession = class TypingSession {
   stats(now = performance.now()) {
     const current = this.currentComparison();
     const correct = this.correctCharacterCount();
-    const attemptErrors = this.rawErrors + this.committedMisses;
-    const attempts = correct + attemptErrors;
     const committedMistakes = this.history.reduce((sum, word) => sum + (word.mistakes || 0), 0);
     const visibleMistakes = committedMistakes + current.currentErrors;
+    const attemptErrors = this.correctedErrors + visibleMistakes;
+    const attempts = correct + attemptErrors;
     const completedWords = this.history.length;
 
     return {
@@ -293,6 +403,8 @@ KQ.TypingSession = class TypingSession {
       input: this.input,
       targetStates: current.targetStates,
       typedStates: current.typedStates,
+      targetProgress: current.targetProgress,
+      operations: current.operations,
       history: this.history,
       eventCount: this.events.length
     };

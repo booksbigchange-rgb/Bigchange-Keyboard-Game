@@ -28,8 +28,8 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20260927-4');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20260927-4');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261002-6');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20261002-6');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
@@ -52,7 +52,7 @@ test('typing field disables browser correction features',async({page})=>{
   await page.locator('[data-view="practice"]').click();
   const box=page.locator('#typed-display');
   await expect(box).toHaveAttribute('autocomplete','off');
-  await expect(box).toHaveAttribute('autocapitalize','off');
+  await expect(box).toHaveAttribute('autocapitalize','none');
   await expect(box).toHaveAttribute('autocorrect','off');
   await expect(box).toHaveAttribute('spellcheck','false');
 });
@@ -135,6 +135,45 @@ test('reported Home Row screenshot state has one visible extra-letter mistake',a
   await expect(page.locator('#mistakes')).toHaveText('1');
   await expect(page.locator('#accuracy')).toHaveText('89%');
   await expect(page.locator('#target .typed-extra')).toHaveText('i');
+});
+
+test('deleting correct text after a middle edit preserves accuracy',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await page.keyboard.type('as');
+  await box.evaluate(el=>el.setSelectionRange(0,1));
+  await page.keyboard.press('Backspace');
+  await expect(box).toHaveValue('s');
+  await box.selectText();
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('asdf');
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
+});
+
+test('middle insertion highlights the actual extra character',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+
+  await box.fill('asxdf');
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#accuracy')).toHaveText('80%');
+  await expect(page.locator('#target .typed-extra')).toHaveText('x');
+  await expect(page.locator('#target .typed-extra')).not.toHaveText('f');
+});
+
+test('middle omission is counted once after commit',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  await page.locator('#typed-display').fill('asf');
+  await page.keyboard.press('Space');
+
+  await expect(page.locator('#mistakes')).toHaveText('1');
+  await expect(page.locator('#accuracy')).toHaveText('75%');
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
 });
 
 test('mid-word editing uses the real textarea without jumping',async({page})=>{
@@ -557,6 +596,107 @@ test('normal student interactions make no network requests after app load',async
   await page.locator('[data-view="progress"]').click();
 
   expect(requests).toEqual([]);
+});
+
+test('mobile-style Space commits without a keydown event',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asdf');
+
+  const allowed=await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'insertText',
+      data:' '
+    });
+    const allowed=el.dispatchEvent(before);
+    if(allowed){
+      el.value+=' ';
+      el.dispatchEvent(new InputEvent('input',{
+        bubbles:true,
+        inputType:'insertText',
+        data:' '
+      }));
+    }
+    return allowed;
+  });
+
+  expect(allowed).toBe(false);
+  await expect(box).toHaveValue('');
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+});
+
+test('mobile-style empty Backspace reopens the previous word without keydown',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  const box=page.locator('#typed-display');
+  await box.fill('asdf');
+
+  await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'insertText',
+      data:' '
+    });
+    const allowed=el.dispatchEvent(before);
+    if(allowed){
+      el.value+=' ';
+      el.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:' '}));
+    }
+  });
+
+  await expect(page.locator('#target .current-word')).toContainText('jkl;');
+  await expect(box).toHaveValue('');
+
+  const allowed=await box.evaluate(el=>{
+    const before=new InputEvent('beforeinput',{
+      bubbles:true,
+      cancelable:true,
+      inputType:'deleteContentBackward'
+    });
+    return el.dispatchEvent(before);
+  });
+
+  expect(allowed).toBe(false);
+  await expect(box).toHaveValue('asdf');
+  await expect(page.locator('#target .current-word')).toContainText('asdf');
+});
+
+test('IME composition text is not counted before composition finishes',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-lesson="1"]').click();
+  const box=page.locator('#typed-display');
+
+  await box.evaluate(el=>{
+    el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));
+    el.value='x';
+    el.dispatchEvent(new InputEvent('input',{
+      bubbles:true,
+      inputType:'insertCompositionText',
+      data:'x',
+      isComposing:true
+    }));
+  });
+
+  await expect(page.locator('#mistakes')).toHaveText('0');
+
+  await box.evaluate(el=>{
+    el.value='r';
+    el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'r'}));
+    el.dispatchEvent(new InputEvent('input',{
+      bubbles:true,
+      inputType:'insertText',
+      data:'r',
+      isComposing:false
+    }));
+  });
+
+  await expect(box).toHaveValue('r');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
 });
 
 test('mobile layout has no horizontal overflow',async({page})=>{

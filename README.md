@@ -2,84 +2,83 @@
 
 A classroom-friendly typing game for BigChange students.
 
-## Current release and deployment
+## Source of truth
 
-- `main` — **audited stable source and default branch**.
-- `typing-core-v2` — **GitHub Pages deployment branch**. The historical branch name remains, but it currently carries the audited V3 release.
-- `typing-core-v3` — V3 development/history branch used to build and validate the current release.
+- `main` — release source of truth.
+- `typing-core-v2` — GitHub Pages mirror of the released `main` commit. The name is historical.
+- `typing-core-v3` — development/history branch only; do not release from it directly.
 - `typing-core-v2-frozen` — preserved pre-V3 fallback.
-- `student-flow` — older classroom-flow fallback/reference.
-- `keyquest-import` — old import/experiment branch only.
 
-GitHub Pages publishes from `typing-core-v2` / repository root.
+Future changes should start from `main`, prove the bug with a regression test, merge to `main`, then mirror that exact commit to the Pages branch. Do not maintain a separate live code history.
 
-Current verified live build: `core-v3-20260927-4`.
+Current release candidate build: `core-v3-20261002-6`.
 
-The release was promoted to `main` after engine tests, Chromium classroom tests, GitHub Pages deployment, and an automated check against the public Pages URL all passed.
+## Why earlier versions kept failing
+
+The failures were systemic, not one typo:
+
+1. Input handling depended on desktop `keydown`, so mobile/virtual-keyboard Space, empty Backspace, and IME/composition paths were not represented.
+2. Positional comparison let one inserted or omitted character cascade into several false errors inside a word.
+3. Accuracy froze ambiguous positional guesses before later input could reveal the correct alignment.
+4. Rendering separately guessed which character was extra, so the UI could disagree with the engine.
+5. CI ran only Chromium, hiding a real WebKit empty-Backspace failure.
+6. `main` and the Pages branch were maintained through separate commit histories, creating deployment/PR confusion even when file trees matched.
+
+Build 5 addresses all six. Build 6 also preserves correct-letter provenance through edits so clearing correct text cannot freeze false accuracy penalties.
 
 ## Typing Core V3
 
-V3 uses a **word-scoped event engine** instead of sentence-wide re-alignment.
-
-- A real textarea contains only the current word.
-- Every inserted/deleted character is processed immediately.
-- Wrong characters appear immediately.
-- Mistakes never lock the keyboard.
-- Space commits exactly one word and advances exactly one word.
-- Empty/repeated Space cannot skip words.
-- Extra letters stay local to the current word.
-- Backspace edits naturally; an empty Backspace can reopen the previous committed word.
-- Visible Mistakes tracks unresolved/final word errors.
-- Corrected wrong keypresses still reduce Accuracy without remaining as visible mistakes.
-- Practice and the 1-minute Challenge share the same V3 engine.
-
-## Current student experience
-
-- Student profile with local progress
-- Seven guided lessons
-- Easy, Medium, and Hard free practice
-- Live WPM, accuracy, and mistakes
-- 90% lesson completion threshold
-- 1-minute challenge
-- Persistent local progress
-- Letter Rain, Rocket Race, and Bubble Pop
-- New-student reset
-- Responsive classroom layout
+- Real browser textarea for the current word
+- `beforeinput` support for virtual/mobile keyboards
+- composition-aware input handling
+- cross-browser empty-Backspace recovery
+- word-scoped dynamic alignment for insertions, omissions, and substitutions
+- one real insertion/omission counts once instead of cascading
+- renderer consumes the same alignment operations as scoring
+- corrected wrong attempts can affect Accuracy without remaining as visible Mistakes
+- Space commits exactly one word
+- Practice and Challenge share the same core
 
 ## Automated checks
 
-The stable/live code is checked with:
+The release gate now includes:
 
-- JavaScript syntax validation
-- 25 typing-engine regression/fuzz tests
-- DOM/cache-busting smoke checks
-- 38 Chromium classroom acceptance tests
-- no-uncaught-browser-error coverage for primary student flows
-- reported Top Row and Home Row regression coverage
-- all lessons and practice levels
-- storage/corrupt-state/reset behavior
+- 32 engine regression/fuzz tests
+- DOM/security smoke checks
+- 44 classroom scenarios in Chromium
+- the same 44 scenarios in Firefox
+- the same 44 scenarios in WebKit
+- **132 browser checks total**
+- mobile-style Space without keydown
+- mobile-style empty Backspace
+- IME/composition input
+- middle insertion and omission alignment
+- exact extra-character rendering
+- all seven lessons
+- Easy/Medium/Hard practice
 - challenge timing/restart/finalization
-- game input, game-loop cleanup, and Rocket Race completion
-- mobile-width overflow
-- student-name XSS resistance and no-network-after-load privacy checks
-- public GitHub Pages build-marker verification on live-branch pushes
+- persistence/reset/corrupt storage
+- all three games and game cleanup
+- XSS/privacy/no-network checks
+- mobile width and accessibility checks
+- public GitHub Pages build-marker verification on the live branch
 
-The app has no production build step and no runtime third-party dependency.
+## Release rule
 
-## Change policy
+A change is not considered fixed because one screenshot looks better or because Chromium is green.
 
-For future typing changes:
-
-1. Reproduce the exact student keystrokes.
-2. Add a failing regression test.
-3. Fix the smallest code path.
-4. Require engine, smoke, and Chromium checks to pass.
-5. Promote the tested change to the Pages branch.
-6. Require the public live-build verification to pass before treating the change as deployed.
+A release requires:
+1. reproduce the exact failure;
+2. add a regression test that fails first;
+3. fix the smallest shared cause;
+4. pass engine + smoke + Chromium + Firefox + WebKit;
+5. merge to `main`;
+6. point the Pages branch at the exact released `main` commit;
+7. verify the public Pages build marker.
 
 ## Open-source references
 
-BigChange uses open-source projects as architectural and interaction references. See `THIRD_PARTY_NOTICES.md` for license details. GPL projects are used as behavioral/architectural references only; BigChange V3 source is independently implemented.
+See `THIRD_PARTY_NOTICES.md`. GPL projects are behavior/architecture references only; BigChange V3 code is independently implemented.
 
 ## Running locally
 
@@ -89,4 +88,4 @@ python3 -m http.server 4173
 
 Then open `http://localhost:4173`.
 
-Progress is stored in browser local storage on that computer.
+Progress is stored locally in the browser.
