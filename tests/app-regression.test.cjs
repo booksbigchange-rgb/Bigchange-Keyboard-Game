@@ -10,13 +10,13 @@ function app(storageFails=false){
   const lessons=Array.from({length:7},(_,i)=>{const e=el('lesson:'+i);e.dataset.lesson=String(i);return e});
   const levels=['easy','medium','hard'].map(x=>{const e=el('level:'+x);e.dataset.level=x;return e});
   const gameButtons=['rain','race','bubble'].map(x=>{const e=el('game:'+x);e.dataset.game=x;return e});
-  const documentListeners={};let ticks=[];let now=0;
+  const documentListeners={},windowListeners={};let ticks=[];let now=0;let removeFails=false;let reloads=0;
   const data=new Map([['bc-keyboard',JSON.stringify({name:'Audit'})]]);
-  const sandbox={console:{info(){}},performance:{now:()=>now},setInterval(fn){ticks.push(fn);return ticks.length},clearInterval(){},requestAnimationFrame(fn){fn()},CustomEvent:function(type,opts){this.type=type;this.detail=opts.detail},confirm:()=>true,location:{reload(){}},localStorage:{getItem:k=>data.get(k)||null,setItem(k,v){if(storageFails)throw Error('QuotaExceededError');data.set(k,v)},removeItem:k=>data.delete(k)},document:{querySelector:el,querySelectorAll(selector){return {'.view':views,'[data-view]':navigation,'[data-lesson]':lessons,'[data-level]':levels,'[data-game]':gameButtons}[selector]||[]},addEventListener(type,fn){documentListeners[type]=fn},dispatchEvent(event){documentListeners[event.type]?.(event)}}};
+  const sandbox={console:{info(){}},performance:{now:()=>now},setInterval(fn){ticks.push(fn);return ticks.length},clearInterval(){},requestAnimationFrame(fn){fn()},CustomEvent:function(type,opts){this.type=type;this.detail=opts.detail},confirm:()=>true,location:{reload(){reloads++}},addEventListener(type,fn){windowListeners[type]=fn},localStorage:{getItem:k=>data.get(k)||null,setItem(k,v){if(storageFails)throw Error('QuotaExceededError');data.set(k,v)},removeItem(k){if(removeFails)throw Error('SecurityError');data.delete(k)}},document:{querySelector:el,querySelectorAll(selector){return {'.view':views,'[data-view]':navigation,'[data-lesson]':lessons,'[data-level]':levels,'[data-game]':gameButtons}[selector]||[]},addEventListener(type,fn){documentListeners[type]=fn},dispatchEvent(event){documentListeners[event.type]?.(event)}}};
   sandbox.window=sandbox;el('#typed-display').onbeforeinput=null;
   const ctx=vm.createContext(sandbox);
   for(const name of ['engine.js','bigchange.js','games.js'])vm.runInContext(fs.readFileSync(path.join(root,'js',name),'utf8'),ctx,{filename:name});
-  return {el,ctx,run:code=>vm.runInContext(code,ctx),time:value=>now=value,tick:()=>ticks.at(-1)(),storageFailure:value=>storageFails=value,data,documentListeners};
+  return {el,ctx,run:code=>vm.runInContext(code,ctx),time:value=>now=value,tick:()=>ticks.at(-1)(),storageFailure:value=>storageFails=value,removeFailure:value=>removeFails=value,reloads:()=>reloads,storageEvent:()=>windowListeners.storage({key:'bc-keyboard',storageArea:sandbox.localStorage}),data,documentListeners};
 }
 
 const assert=require('node:assert/strict');
@@ -55,6 +55,7 @@ test('deadline blocks late typing, commit, backspace and composition before time
   if(action==='composition'){const box=a.el('#typed-display');box.value='makes';box.listeners.compositionend({target:box})}
   assert.equal(a.run('session.done'),true);assert.equal(a.run('session.stats().correct'),8);
   assert.equal(a.run('session.endTime'),60000);assert.equal(a.run('state.last.accuracy'),100);
+  assert.equal(a.el('#timer-seconds').textContent,0);
  }
 });
 test('challenge shows a bounded moving word window',()=>{
@@ -82,5 +83,54 @@ test('failed progress save is visible and can be retried',()=>{
  a.storageFailure(false);a.el('#retry-save').onclick();
  assert.equal(a.el('#storage-warning').hidden,true);
  assert.deepEqual(JSON.parse(a.data.get('bc-keyboard')).completed,[1]);
+});
+test('saving merges another tab lessons and independent best results',()=>{
+ const a=app();const saved=JSON.parse(a.data.get('bc-keyboard'));
+ saved.completed=[1];saved.best={wpm:30,accuracy:95};
+ a.data.set('bc-keyboard',JSON.stringify(saved));
+ a.run('state.completed=[2];state.best={wpm:40,accuracy:90};save()');
+ const result=JSON.parse(a.data.get('bc-keyboard'));
+ assert.deepEqual(result.completed,[1,2]);assert.deepEqual(result.best,{wpm:40,accuracy:95});
+});
+test('storage events repair overlapping writes without repeating writes forever',()=>{
+ const a=app();a.run('state.completed=[1];save()');
+ const saved=JSON.parse(a.data.get('bc-keyboard'));saved.completed=[2];
+ a.data.set('bc-keyboard',JSON.stringify(saved));a.storageEvent();
+ assert.deepEqual(JSON.parse(a.data.get('bc-keyboard')).completed,[2,1]);
+ const after=a.data.get('bc-keyboard');a.storageEvent();assert.equal(a.data.get('bc-keyboard'),after);
+});
+test('stale tabs cannot restore reset progress or write into a same-name new profile',()=>{
+ for(const replacement of [null,{name:'Audit',profileId:'new-student',completed:[]}]){
+  const a=app();a.run('state.completed=[1]');
+  if(replacement)a.data.set('bc-keyboard',JSON.stringify(replacement));else a.data.delete('bc-keyboard');
+  assert.equal(a.run('save()'),false);assert.equal(a.reloads(),1);
+  assert.equal(a.el('#typed-display').disabled,true);
+  assert.deepEqual(a.data.get('bc-keyboard'),replacement?JSON.stringify(replacement):undefined);
+ }
+});
+test('failed reset keeps progress and can be retried safely',()=>{
+ const a=app();const before=a.data.get('bc-keyboard');a.removeFailure(true);
+ a.el('#new-student').onclick();assert.equal(a.reloads(),0);
+ assert.equal(a.el('#reset-warning').hidden,false);assert.equal(a.data.get('bc-keyboard'),before);
+ a.removeFailure(false);a.el('#new-student').onclick();
+ assert.equal(a.reloads(),1);assert.equal(a.data.has('bc-keyboard'),false);
+});
+test('drop and paste input cannot score while ordinary typing remains enabled',()=>{
+ const a=app();a.el('lesson:0').onclick();const box=a.el('#typed-display');
+ for(const type of ['insertFromDrop','insertFromPaste']){
+  const e=event({inputType:type,data:'asdf jkl; '});box.listeners.beforeinput(e);
+  assert.equal(e.prevented,true);box.value='asdf jkl; ';
+  box.listeners.input({inputType:type,target:box});assert.equal(box.value,'');
+  assert.equal(a.run('session.stats().correct'),0);
+ }
+ const drop=event();box.listeners.drop(drop);assert.equal(drop.prevented,true);
+ a.run("applyTypedValue('asdf')");assert.equal(a.run('session.stats().correct'),4);
+});
+test('malformed stored JSON can be replaced with a working student profile',()=>{
+ const a=app();a.data.set('bc-keyboard','broken JSON');
+ // Model a newly opened profile form after the unreadable record was ignored.
+ a.run("state=cleanState({name:'New Student'});hasSavedProfile=false");
+ assert.equal(a.run('save()'),true);
+ assert.equal(JSON.parse(a.data.get('bc-keyboard')).name,'New Student');
 });
 console.log(passed+' application regression tests passed');

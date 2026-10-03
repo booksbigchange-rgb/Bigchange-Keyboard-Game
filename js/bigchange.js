@@ -32,14 +32,6 @@ let challengeEndAt=0;
 
 const $=selector=>document.querySelector(selector);
 
-let state={};
-try{state=JSON.parse(localStorage.getItem('bc-keyboard')||'{}')||{}}catch{state={}}
-if(!state||typeof state!=='object'||Array.isArray(state))state={};
-state.name=typeof state.name==='string'?state.name.trim().slice(0,20):'';
-state.completed=Array.isArray(state.completed)
-  ? [...new Set(state.completed.filter(i=>Number.isInteger(i)&&i>=0&&i<lessons.length))]
-  : [];
-
 function cleanResult(value){
   if(!value||typeof value!=='object'||!Number.isFinite(Number(value.wpm))||!Number.isFinite(Number(value.accuracy)))return null;
   return{
@@ -47,21 +39,90 @@ function cleanResult(value){
     accuracy:Math.max(0,Math.min(100,Math.round(Number(value.accuracy))))
   };
 }
-state.last=cleanResult(state.last);
-state.best=cleanResult(state.best);
+function cleanState(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))value={};
+  return{
+    name:typeof value.name==='string'?value.name.trim().slice(0,20):'',
+    profileId:typeof value.profileId==='string'&&value.profileId?value.profileId:null,
+    completed:Array.isArray(value.completed)
+      ? [...new Set(value.completed.filter(i=>Number.isInteger(i)&&i>=0&&i<lessons.length))]:[],
+    last:cleanResult(value.last),best:cleanResult(value.best)
+  };
+}
+
+function readState(){
+  const raw=localStorage.getItem('bc-keyboard');
+  try{return cleanState(JSON.parse(raw||'{}'))}catch{return cleanState({})}
+}
+
+let state;
+try{state=readState()}catch{state=cleanState({})}
+let profileChanged=false;
+let savePending=false;
+let hasSavedProfile=!!state.name;
+
+function sameProfile(saved){
+  // Legacy profiles acquire an ID on their first successful save. An ID
+  // distinguishes a new student even when they use the same name.
+  return state.profileId?saved.profileId===state.profileId:
+    saved.profileId===null&&(saved.name===state.name||(!saved.name&&!hasSavedProfile));
+}
+
+function mergeProgress(saved){
+  state.completed=[...new Set([...saved.completed,...state.completed])];
+  if(saved.best){
+    state.best={wpm:Math.max(state.best?.wpm||0,saved.best.wpm),
+      accuracy:Math.max(state.best?.accuracy||0,saved.best.accuracy)};
+  }
+}
+
+function reloadChangedProfile(){
+  profileChanged=true;
+  stopTypingTimer();
+  $('#typed-display').disabled=true;
+  location.reload();
+}
 
 function save(){
+  if(profileChanged)return false;
   try{
-    localStorage.setItem('bc-keyboard',JSON.stringify(state));
+    const saved=readState();
+    if(!sameProfile(saved)){reloadChangedProfile();return false;}
+    mergeProgress(saved);
+    const previousId=state.profileId;
+    state.profileId=previousId||window.crypto?.randomUUID?.()||Date.now()+'-'+Math.random();
+    try{
+      localStorage.setItem('bc-keyboard',JSON.stringify(state));
+    }catch(error){state.profileId=previousId;throw error;}
+    hasSavedProfile=true;
+    savePending=false;
     $('#storage-warning').hidden=true;
     return true;
   }catch{
+    savePending=true;
     $('#storage-warning').hidden=false;
     return false;
   }
 }
 
 $('#retry-save').onclick=save;
+
+window.addEventListener?.('storage',event=>{
+  if(event.storageArea!==localStorage||(event.key!==null&&event.key!=='bc-keyboard'))return;
+  try{
+    // Read current storage, rather than an event value that may already be old.
+    const saved=readState();
+    if(!sameProfile(saved)){reloadChangedProfile();return;}
+    mergeProgress(saved);
+    if(!savePending)state.last=saved.last;
+    // Repair overlapping writes only when the stored record is missing progress.
+    // This converges without making every storage event trigger another write.
+    if(state.completed.some(index=>!saved.completed.includes(index))||
+      (state.best&&(state.best.wpm>(saved.best?.wpm||0)||state.best.accuracy>(saved.best?.accuracy||0))))save();
+    renderLessons();
+    renderProgress();
+  }catch{$('#storage-warning').hidden=false;}
+});
 
 function stopTypingTimer(){
   if(timer)clearInterval(timer);
@@ -264,6 +325,7 @@ function finishChallenge(reason='time'){
   if(!session||session.challengeResultHandled)return;
 
   const exactEnd=reason==='time'&&challengeEndAt?challengeEndAt:null;
+  if(reason==='time'){challengeSeconds=0;updateTimer();}
   stopTypingTimer();
   if(!session.done)session.finish(exactEnd??performance.now());
   session.challengeResultHandled=true;
@@ -405,6 +467,7 @@ function reopenPreviousWordFromInput(){
 }
 
 typingBox.addEventListener('paste',event=>event.preventDefault());
+typingBox.addEventListener('drop',event=>event.preventDefault());
 
 typingBox.addEventListener('compositionstart',()=>{
   composingInput=true;
@@ -431,6 +494,7 @@ typingBox.addEventListener('beforeinput',event=>{
   if(composingInput||event.isComposing)return;
 
   const type=event.inputType||'';
+  if(type==='insertFromDrop'||type==='insertFromPaste'){event.preventDefault();return;}
   const isSpace=(type==='insertText'||type==='insertReplacementText')&&typeof event.data==='string'&&/\s/.test(event.data);
   const isEnter=type==='insertLineBreak'||type==='insertParagraph';
 
@@ -474,6 +538,10 @@ typingBox.addEventListener('keydown',event=>{
 
 typingBox.addEventListener('input',event=>{
   if(!typingActive()){typingBox.value=session?.input||'';return;}
+  if(event.inputType==='insertFromDrop'||event.inputType==='insertFromPaste'){
+    typingBox.value=session.input;
+    return;
+  }
   if(composingInput||event.isComposing)return;
   applyTextWithSpaces(event.target.value);
 });
@@ -505,10 +573,16 @@ $('#challenge-start').onclick=()=>{
 
 $('#new-student').onclick=()=>{
   if(!confirm('Start a new student? This clears the saved progress on this computer.'))return;
-  try{localStorage.removeItem('bc-keyboard')}catch{}
-  location.reload();
+  try{
+    localStorage.removeItem('bc-keyboard');
+    reloadChangedProfile();
+  }catch{
+    $('#reset-warning').hidden=false;
+  }
 };
 
+// Preserve existing progress while upgrading old records with a profile ID.
+if(state.name&&!state.profileId)save();
 renderLessons();
 renderProgress();
 

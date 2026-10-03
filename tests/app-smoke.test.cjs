@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const build='core-v3-20261003-8';
+const build='core-v3-20261003-9';
 
 const requiredIds=[
   'keyboard-guide','visual-keyboard','hand-guide','finger-hint','storage-warning','retry-save','profile','student-name','save-profile','student-nav','learn','lesson-list',
@@ -12,7 +12,7 @@ const requiredIds=[
   'typed-display','message','wpm','accuracy','mistakes','start','challenge',
   'challenge-start','best-wpm','best-accuracy','games','game-play','game-title',
   'game-instructions','game-board','game-score','game-streak','game-message',
-  'game-restart','progress','progress-content','new-student'
+  'game-restart','progress','progress-content','new-student','reset-warning'
 ];
 
 for(const id of requiredIds){

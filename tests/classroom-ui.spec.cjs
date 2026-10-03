@@ -26,10 +26,83 @@ async function targetText(page){
   return (await page.locator('#target').textContent()).replace(/\s+/g,' ').trim();
 }
 
+async function completeLesson(page,index){
+  await page.locator('[data-view="learn"]').click();
+  await page.locator('[data-lesson="'+index+'"]').click();
+  await typePhrase(page,await targetText(page));
+  await expect(page.locator('#typed-display')).toBeDisabled();
+}
+
+test('two tabs preserve completed lessons and show each other progress',async({page,context})=>{
+  await createStudent(page);const other=await context.newPage();await other.goto(BASE_URL);
+  await completeLesson(page,1);
+  await expect(other.locator('[data-lesson="1"]')).toHaveClass(/done/);
+  await completeLesson(other,2);
+  await expect(page.locator('[data-lesson="2"]')).toHaveClass(/done/);
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')).completed.sort())).toEqual([1,2]);
+});
+
+test('New Student clears all tabs and a same-name student starts fresh',async({page,context})=>{
+  await createStudent(page);await completeLesson(page,1);
+  const other=await context.newPage();await other.goto(BASE_URL);
+  const oldId=await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')).profileId);
+  await page.locator('[data-view="progress"]').click();page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#new-student').click();
+  await expect(page.locator('#profile')).toBeVisible();await expect(other.locator('#profile')).toBeVisible();
+  await other.locator('#student-name').fill('Test Student');await other.locator('#save-profile').click();
+  await expect(page.locator('#welcome')).toContainText('Test Student');
+  const saved=await other.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')));
+  expect(saved.profileId).not.toBe(oldId);expect(saved.completed).toEqual([]);
+});
+
+test('blocked New Student reset warns and succeeds when retried',async({page})=>{
+  await createStudent(page);await completeLesson(page,1);
+  await page.locator('[data-view="progress"]').click();
+  await page.evaluate(()=>{window.auditRemove=Storage.prototype.removeItem;Storage.prototype.removeItem=function(){throw new DOMException('Blocked','SecurityError')}});
+  page.once('dialog',dialog=>dialog.accept());await page.locator('#new-student').click();
+  await expect(page.locator('#reset-warning')).toBeVisible();
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')).completed)).toEqual([1]);
+  await page.evaluate(()=>{Storage.prototype.removeItem=window.auditRemove});
+  page.once('dialog',dialog=>dialog.accept());await page.locator('#new-student').click();
+  await expect(page.locator('#profile')).toBeVisible();
+  expect(await page.evaluate(()=>localStorage.getItem('bc-keyboard'))).toBeNull();
+});
+
+test('deadline input finishes with zero seconds showing',async({page})=>{
+  await createStudent(page);await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();await page.keyboard.type('Practice');
+  await page.evaluate(()=>{clearInterval(timer);challengeSeconds=1;updateTimer();challengeEndAt=performance.now()-1;applyTypedValue('makes')});
+  await expect(page.locator('#typed-display')).toBeDisabled();await expect(page.locator('#message')).toContainText('Time!');
+  await expect(page.locator('#timer-seconds')).toHaveText('0');
+});
+
+test('native text drop cannot earn a lesson completion',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="0"]').click();
+  await page.evaluate(()=>{
+    const source=document.createElement('div');source.id='audit-drag';source.draggable=true;source.textContent='Drag practice text';
+    source.style.cssText='position:fixed;top:10px;left:10px;z-index:9999;padding:20px;background:white';
+    source.addEventListener('dragstart',event=>event.dataTransfer.setData('text/plain','asdf jkl; asdf jkl; dad sad fall ask'));
+    document.body.append(source);
+  });
+  await page.locator('#audit-drag').dragTo(page.locator('#typed-display'));
+  await expect(page.locator('#typed-display')).toHaveValue('');await expect(page.locator('#mistakes')).toHaveText('0');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')).completed)).toEqual([]);
+  await page.locator('#typed-display').focus();await typePhrase(page,'asdf jkl; asdf jkl; dad sad fall ask');
+  await expect(page.locator('#message')).toContainText('Practice complete');
+});
+
+test('legacy saved progress upgrades without loss',async({page})=>{
+  await fresh(page);await page.evaluate(()=>localStorage.setItem('bc-keyboard',JSON.stringify({name:'Existing Student',completed:[1,3],best:{wpm:25,accuracy:96}})));
+  await page.reload();await expect(page.locator('#welcome')).toContainText('Existing Student');
+  await expect(page.locator('[data-lesson="1"]')).toHaveClass(/done/);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')));
+  expect(saved.profileId).toBeTruthy();expect(saved.completed).toEqual([1,3]);expect(saved.best).toEqual({wpm:25,accuracy:96});
+});
+
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261003-8');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20261003-8');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261003-9');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20261003-9');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
