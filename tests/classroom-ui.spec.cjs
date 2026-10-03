@@ -28,8 +28,8 @@ async function targetText(page){
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261002-6');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20261002-6');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261003-8');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20261003-8');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{
@@ -707,4 +707,119 @@ test('mobile layout has no horizontal overflow',async({page})=>{
     client:document.documentElement.clientWidth
   }));
   expect(sizes.scroll).toBeLessThanOrEqual(sizes.client+1);
+});
+
+
+test('Build 7 partial challenge score survives the deadline',async({page})=>{
+  await createStudent(page);
+  await page.locator('[data-view="challenge"]').click();
+  await page.locator('#challenge-start').click();
+  await page.keyboard.type('Practice');
+  await page.evaluate(()=>finishChallenge('time'));
+  await expect(page.locator('#accuracy')).toHaveText('100%');
+  await expect(page.locator('#mistakes')).toHaveText('0');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('bc-keyboard')).last.accuracy)).toBe(100);
+});
+
+test('Build 7 batch mobile input retains text before its space',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="0"]').click();
+  await page.locator('#typed-display').evaluate(el=>el.dispatchEvent(new InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:'asdf jkl; '})));
+  await expect(page.locator('#target .current-word')).toHaveText('asdf');
+  await expect(page.locator('#accuracy')).toHaveText('100%');
+  expect(await page.evaluate(()=>session.wordIndex)).toBe(2);
+});
+
+test('Build 7 save warning appears and retry preserves progress',async({page})=>{
+  await createStudent(page);
+  await page.evaluate(()=>{window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('Full','QuotaExceededError')}});
+  await page.locator('[data-lesson="1"]').click();await typePhrase(page,'red tree quiet type power');
+  await expect(page.locator('#storage-warning')).toBeVisible();
+  await page.evaluate(()=>{Storage.prototype.setItem=window.originalSetItem});
+  await page.locator('#retry-save').click();await expect(page.locator('#storage-warning')).toBeHidden();
+  await page.reload();await expect(page.locator('[data-lesson="1"]')).toHaveClass(/done/);
+});
+
+test('Build 7 game allows navigation Space and browser shortcuts',async({page})=>{
+  await createStudent(page);await page.locator('[data-view="games"]').click();await page.locator('[data-game="bubble"]').click();
+  const target=(await page.locator('#game-board').textContent()).trim();
+  const allowed=await page.locator('#game-board').evaluate((el,key)=>el.dispatchEvent(new KeyboardEvent('keydown',{key,ctrlKey:true,bubbles:true,cancelable:true})),target);
+  expect(allowed).toBe(true);await expect(page.locator('#game-score')).toHaveText('0');
+  await page.locator('[data-view="learn"]').press('Space');
+  await expect(page.locator('#learn')).toBeVisible();
+});
+
+test('Build 7 current challenge word remains visible on desktop and phone',async({page})=>{
+  for(const size of [{width:1280,height:720},{width:390,height:844}]){
+    await page.setViewportSize(size);await createStudent(page);
+    await page.locator('[data-view="challenge"]').click();await page.locator('#challenge-start').click();
+    await page.keyboard.type('Pra');
+    const word=await page.locator('#target .current-word').boundingBox();
+    const box=await page.locator('#typed-display').boundingBox();
+    expect(word.y).toBeGreaterThanOrEqual(0);expect(word.y+word.height).toBeLessThan(size.height);
+    expect(box.y+box.height).toBeLessThanOrEqual(size.height);
+    if(size.width===1280)await page.screenshot({path:require('node:path').resolve(__dirname,'../../../outputs/build7-preview.png')});
+  }
+});
+
+
+test('keyboard guide follows letters, edits, Space and word commits',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="0"]').click();
+  await expect(page.locator('#finger-hint')).toContainText('Left little finger');
+  await expect(page.locator('[data-key="a"]')).toHaveAttribute('aria-current','true');
+  await page.keyboard.type('as');await expect(page.locator('[data-key="d"]')).toHaveAttribute('aria-current','true');
+  await page.keyboard.press('Backspace');await expect(page.locator('[data-key="s"]')).toHaveAttribute('aria-current','true');
+  await page.keyboard.type('sdf');await expect(page.locator('[data-key="Space"]')).toHaveAttribute('aria-current','true');
+  await page.keyboard.press('Space');await expect(page.locator('[data-key="j"]')).toHaveAttribute('aria-current','true');
+  await expect(page.locator('#finger-hint')).toContainText('Right index finger');
+});
+
+test('keyboard guide teaches opposite Shift for capitals and punctuation',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="3"]').click();
+  await expect(page.locator('[data-key="b"]')).toHaveAttribute('aria-current','true');
+  await expect(page.locator('[data-key="ShiftRight"]')).toHaveAttribute('aria-current','true');
+  await expect(page.locator('#finger-hint')).toContainText('Hold right Shift');
+  await page.locator('[data-view="learn"]').click();await page.locator('[data-lesson="5"]').click();
+  await expect(page.locator('[data-key="ShiftLeft"]')).toHaveAttribute('aria-current','true');
+  await page.keyboard.type('Hello,');await page.keyboard.press('Space');await page.keyboard.type('student');
+  await expect(page.locator('[data-key="1"]')).toHaveAttribute('aria-current','true');
+  await expect(page.locator('[data-key="ShiftRight"]')).toHaveAttribute('aria-current','true');
+  await expect(page.locator('#finger-hint')).toContainText('Next: !');
+});
+
+test('keyboard guide hides on request, does not type, and clears at completion',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="2"]').click();
+  await page.locator('[data-key="v"]').click();await expect(page.locator('#typed-display')).toHaveValue('');
+  await page.locator('#keyboard-guide summary').click();await expect(page.locator('#visual-keyboard')).toBeHidden();
+  await page.locator('#keyboard-guide summary').click();await page.locator('#typed-display').click();
+  await typePhrase(page,'van zoom mix cabin');await expect(page.locator('#finger-hint')).toContainText('Finished!');
+  await expect(page.locator('#visual-keyboard [aria-current="true"]')).toHaveCount(0);
+});
+
+test('keyboard guide fits phone screens and provides clear hand diagrams',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await createStudent(page);
+  await page.locator('[data-lesson="0"]').click();
+  await page.locator('#keyboard-guide').scrollIntoViewIfNeeded();
+  await expect(page.locator('#hand-guide')).toHaveAttribute('aria-label',/Left little finger/);
+  await expect(page.locator('#hand-guide svg')).toHaveCount(2);
+  const widths=await page.evaluate(()=>({body:document.documentElement.scrollWidth,viewport:innerWidth}));
+  expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+  await page.screenshot({path:require('node:path').resolve(__dirname,'../../../outputs/keyboard-guide-phone.png')});
+  await page.setViewportSize({width:1280,height:900});await page.locator('#keyboard-guide').scrollIntoViewIfNeeded();
+  await page.screenshot({path:require('node:path').resolve(__dirname,'../../../outputs/keyboard-guide-preview.png')});
+});
+
+
+test('transparent fingers align with highlighted keys after resize and reopening',async({page})=>{
+  await createStudent(page);await page.locator('[data-lesson="3"]').click();
+  for(const size of [{width:1280,height:900},{width:390,height:844},{width:900,height:720}]){
+    await page.setViewportSize(size);
+    await page.locator('#keyboard-guide summary').click();await page.locator('#keyboard-guide summary').click();
+    await expect.poll(async()=>page.evaluate(()=>{
+      const tips=[...document.querySelectorAll('.tip-active')].map(el=>{const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}});
+      const keys=[...document.querySelectorAll('#visual-keyboard [aria-current="true"]')].map(el=>{const r=el.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}});
+      return tips.length===2&&keys.every(key=>tips.some(tip=>Math.hypot(key.x-tip.x,key.y-tip.y)<3));
+    })).toBe(true);
+    expect(await page.locator('#hand-guide').evaluate(el=>getComputedStyle(el).pointerEvents)).toBe('none');
+    await expect(page.locator('#hand-guide svg .hand-label')).toHaveCount(2);
+  }
 });

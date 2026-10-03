@@ -27,14 +27,18 @@ jobs:
           node --check js/engine.js
           node --check js/bigchange.js
           node --check js/games.js
+          node --check js/keyboard-guide.js
           node --check tests/typing-engine.test.cjs
           node --check tests/app-smoke.test.cjs
+          node --check tests/app-regression.test.cjs
           node --check tests/classroom-ui.spec.cjs
           node --check playwright.config.cjs
       - name: Run typing engine regression tests
         run: node tests/typing-engine.test.cjs
       - name: Run application DOM smoke checks
-        run: node tests/app-smoke.test.cjs
+        run: |
+          node tests/app-smoke.test.cjs
+          node tests/app-regression.test.cjs
       - name: Install browser test runner
         run: npm install --no-save --ignore-scripts @playwright/test@1.55.0
       - name: Install browser engines

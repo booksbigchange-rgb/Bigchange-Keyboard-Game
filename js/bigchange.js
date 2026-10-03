@@ -51,8 +51,17 @@ state.last=cleanResult(state.last);
 state.best=cleanResult(state.best);
 
 function save(){
-  try{localStorage.setItem('bc-keyboard',JSON.stringify(state))}catch{}
+  try{
+    localStorage.setItem('bc-keyboard',JSON.stringify(state));
+    $('#storage-warning').hidden=true;
+    return true;
+  }catch{
+    $('#storage-warning').hidden=false;
+    return false;
+  }
 }
+
+$('#retry-save').onclick=save;
 
 function stopTypingTimer(){
   if(timer)clearInterval(timer);
@@ -191,7 +200,9 @@ function renderWord(word,index,stats){
 function renderReference(){
   if(!session)return;
   const stats=session.stats();
-  $('#target').innerHTML=session.words.map((word,index)=>renderWord(word,index,stats)).join(' ');
+  const first=challengeMode?Math.max(0,stats.currentWordIndex-1):0;
+  const last=challengeMode?stats.currentWordIndex+5:session.words.length;
+  $('#target').innerHTML=session.words.slice(first,last).map((word,index)=>renderWord(word,index+first,stats)).join(' ');
 }
 
 function updateInputHint(){
@@ -229,6 +240,7 @@ function start(){
   updateInputHint();
   render();
   $('#typed-display').focus();
+  if(challengeMode)$('#typed-display').scrollIntoView({block:'center'});
 }
 
 function startChallengeClock(){
@@ -296,6 +308,7 @@ function render(){
   $('#wpm').textContent=stats.wpm;
   $('#accuracy').textContent=stats.accuracy+'%';
   $('#mistakes').textContent=stats.mistakes;
+  window.renderKeyboardGuide?.(stats);
 
   if(stats.done&&challengeMode&&!session.challengeResultHandled){
     finishChallenge('finished');
@@ -310,7 +323,7 @@ function render(){
 }
 
 function commitCurrentWord(reason){
-  if(!session||session.done||!session.input.length)return false;
+  if(!typingActive()||!session.input.length)return false;
 
   const comparison=session.currentComparison();
   const result=session.commitWord(performance.now(),reason||'space');
@@ -342,12 +355,20 @@ const typingBox=$('#typed-display');
 const supportsBeforeInput='onbeforeinput' in typingBox;
 let composingInput=false;
 
-function typingActive(){
+function typingActive(now=performance.now()){
+  if(challengeRunning&&now>=challengeEndAt){
+    typingBox.value=session.input;
+    finishChallenge('time');
+    return false;
+  }
   return !!session&&!session.done&&$('#practice').style.display==='block';
 }
 
 function applyTypedValue(value,now=performance.now()){
-  if(!typingActive())return 'ignored';
+  if(!typingActive(now)){
+    typingBox.value=session?.input||'';
+    return 'ignored';
+  }
 
   const beginChallenge=challengeMode&&!challengeRunning;
   const result=session.update(value,now);
@@ -389,21 +410,38 @@ typingBox.addEventListener('compositionstart',()=>{
   composingInput=true;
 });
 
+function applyTextWithSpaces(value){
+  if(!/\s/.test(value))return applyTypedValue(value);
+  const parts=String(value).split(/(\s+)/);
+  for(const part of parts){
+    if(!typingActive())break;
+    if(/\s/.test(part))commitCurrentWord('space');
+    else if(part)applyTypedValue(part);
+  }
+  typingBox.value=session.input;
+}
+
 typingBox.addEventListener('compositionend',event=>{
   composingInput=false;
-  applyTypedValue(event.target.value,performance.now());
+  applyTextWithSpaces(event.target.value);
 });
 
 typingBox.addEventListener('beforeinput',event=>{
-  if(!typingActive()||composingInput||event.isComposing)return;
+  if(!typingActive()){event.preventDefault();return;}
+  if(composingInput||event.isComposing)return;
 
   const type=event.inputType||'';
-  const isSpace=type==='insertText'&&typeof event.data==='string'&&/\s/.test(event.data);
+  const isSpace=(type==='insertText'||type==='insertReplacementText')&&typeof event.data==='string'&&/\s/.test(event.data);
   const isEnter=type==='insertLineBreak'||type==='insertParagraph';
 
   if(isSpace||isEnter){
     event.preventDefault();
-    commitCurrentWord(isEnter?'enter':'space');
+    if(isEnter)commitCurrentWord('enter');
+    else{
+      const start=typingBox.selectionStart??typingBox.value.length;
+      const end=typingBox.selectionEnd??start;
+      applyTextWithSpaces(typingBox.value.slice(0,start)+event.data+typingBox.value.slice(end));
+    }
     return;
   }
 
@@ -435,8 +473,9 @@ typingBox.addEventListener('keydown',event=>{
 });
 
 typingBox.addEventListener('input',event=>{
-  if(!typingActive()||composingInput||event.isComposing)return;
-  applyTypedValue(event.target.value,performance.now());
+  if(!typingActive()){typingBox.value=session?.input||'';return;}
+  if(composingInput||event.isComposing)return;
+  applyTextWithSpaces(event.target.value);
 });
 
 $('#start').onclick=start;

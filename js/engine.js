@@ -64,11 +64,14 @@ function compareWord(target, typed, complete = false) {
   let j = n;
 
   while (i > 0 || j > 0) {
+    // Keep an earlier matching character when a later duplicate is equally
+    // well explained as an insertion, so deleting the duplicate keeps its penalty.
     if (
       i > 0 &&
       j > 0 &&
       target[i - 1] === typed[j - 1] &&
-      dp[i][j] === dp[i - 1][j - 1]
+      dp[i][j] === dp[i - 1][j - 1] &&
+      !(dp[i][j] === dp[i][j - 1] + 1)
     ) {
       targetStates[i - 1] = KQ.CORRECT;
       typedStates[j - 1] = KQ.CORRECT;
@@ -191,6 +194,7 @@ KQ.TypingSession = class TypingSession {
     this.totalInserted = 0;
     this.startTime = null;
     this.endTime = null;
+    this.finishedComparison = null;
     this.done = this.words.length === 0;
     this.wpm = 0;
     this.resultHandled = false;
@@ -208,7 +212,7 @@ KQ.TypingSession = class TypingSession {
   }
 
   currentComparison() {
-    return compareWord(this.currentWord ?? '', this.input);
+    return this.finishedComparison ?? compareWord(this.currentWord ?? '', this.input);
   }
 
   update(value, now = performance.now()) {
@@ -345,6 +349,7 @@ KQ.TypingSession = class TypingSession {
 
   finish(at = performance.now()) {
     if (this.done) return;
+    this.finishedComparison = this.currentComparison();
     this.done = true;
     this.endTime = Math.max(this.startTime ?? at, at);
     this.updateWpm(this.endTime);

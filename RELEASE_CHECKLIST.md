@@ -1,12 +1,15 @@
 # Typing Core V3 Release Checklist
 
-## Build 6 accuracy-fix gate
-- Expected build marker: `core-v3-20261002-6`
-- Engine tests: 32
-- Chromium scenarios: 44
-- Firefox scenarios: 44
-- WebKit scenarios: 44
-- Total browser checks: 132
+## Build 8 keyboard-guide gate
+- Expected build marker: `core-v3-20261003-8`
+- Engine tests: 34
+- Controlled application regression groups: 7
+- Chromium scenarios: 54
+- Firefox scenarios: 54
+- WebKit scenarios: 54
+- Total browser checks: 162
+
+Build 8 is currently a local preview. All three browser projects must pass before release; phone viewport testing does not replace a real mobile keyboard check.
 
 ## Input invariants
 - Wrong letters appear immediately.
@@ -15,7 +18,7 @@
 - Empty Backspace can reopen the previous word through both modern and WebKit-style paths.
 - IME/composition intermediate text is not scored as final input.
 - Empty/repeated Space cannot skip a target word.
-- Space advances exactly one word.
+- One separator advances one word; batched text preserves all delivered letters.
 - Editing in the middle of the textarea remains natural.
 
 ## Alignment/scoring invariants
@@ -30,6 +33,9 @@
 - Reopening a committed word does not double-count omissions.
 - Accuracy stays between 0 and 100.
 - WPM stays finite and non-negative.
+- Timeout preserves correct letters in an unfinished word.
+- Deleting an extra repeated letter keeps the genuine mistake penalty.
+- Input at or after the deadline cannot alter the result.
 
 ## Classroom invariants
 - All seven lessons complete with correct typing.
@@ -53,3 +59,10 @@
 - The Pages branch must mirror the exact released `main` commit.
 - Do not maintain separate code commits on the Pages branch.
 - Public Pages must report the expected build marker before the release is accepted.
+
+## Keyboard-guide invariants
+- Key and finger follow the next expected character after edits and commits.
+- Capitals and symbols highlight the opposite-hand Shift key.
+- Space highlights either thumb, and completion clears active key highlights.
+- Guide can be collapsed without changing scores or typing.
+- US QWERTY layout is labeled explicitly; keyboard fits phone widths.

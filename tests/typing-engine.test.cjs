@@ -329,5 +329,27 @@ test('clearing mixed correct and wrong letters counts only the wrong attempt',()
   eq(s.stats(1000).accuracy,80);
 });
 
+test('timed finish preserves correct partial word and stable score',()=>{
+  for(const value of ['Practice','Pract','Pracx']){
+    const s=new KQ.TypingSession('Practice makes progress');
+    s.update(value,1000);
+    const before=s.stats(61000);
+    s.finish(61000);
+    const after=s.stats(999999);
+    eq(after.correct,before.correct);eq(after.accuracy,before.accuracy);
+    eq(after.mistakes,before.mistakes);eq(after.seconds,60);
+    eq(s.update('late',999999),'ignored');
+  }
+});
+
+test('removing a duplicated correct letter retains its wrong attempt',()=>{
+  for(const target of ['asdf','letter','book']){
+    const s=new KQ.TypingSession(target+' next');
+    const prefix=target.slice(0,-1);
+    for(const value of [prefix,prefix+prefix.at(-1),prefix,target])s.update(value,1000);
+    eq(s.stats(1000).attemptErrors,1);
+  }
+});
+
 console.log('\n'+passed+' passed · '+failed+' failed');
 if(failed)process.exit(1);
