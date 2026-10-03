@@ -11,7 +11,7 @@ A classroom-friendly typing game for BigChange students.
 
 Future changes should start from `main`, prove the bug with a regression test, merge to `main`, then mirror that exact commit to the Pages branch. Do not maintain a separate live code history.
 
-Current release candidate build: `core-v3-20261002-6`.
+Current local release candidate build: `core-v3-20261003-8`. Build 8 is a local preview until the release gate is verified.
 
 ## Why earlier versions kept failing
 
@@ -24,7 +24,7 @@ The failures were systemic, not one typo:
 5. CI ran only Chromium, hiding a real WebKit empty-Backspace failure.
 6. `main` and the Pages branch were maintained through separate commit histories, creating deployment/PR confusion even when file trees matched.
 
-Build 5 addresses all six. Build 6 also preserves correct-letter provenance through edits so clearing correct text cannot freeze false accuracy penalties.
+Build 5 addresses all six. Build 6 also preserves correct-letter provenance through edits so clearing correct text cannot freeze false accuracy penalties. Build 7 preserves partial-word scores at timeout, rejects late input, keeps duplicate-key penalties, accepts batched mobile text, limits visible challenge context, respects game focus/shortcuts, and warns when saving fails.
 
 ## Typing Core V3
 
@@ -43,12 +43,13 @@ Build 5 addresses all six. Build 6 also preserves correct-letter provenance thro
 
 The release gate now includes:
 
-- 32 engine regression/fuzz tests
+- 34 engine regression/fuzz tests
+- 7 controlled application regression groups
 - DOM/security smoke checks
-- 44 classroom scenarios in Chromium
-- the same 44 scenarios in Firefox
-- the same 44 scenarios in WebKit
-- **132 browser checks total**
+- 54 classroom scenarios in Chromium
+- the same 54 scenarios in Firefox
+- the same 54 scenarios in WebKit
+- **162 browser checks total (required release gate; not a claim of local results)**
 - mobile-style Space without keydown
 - mobile-style empty Backspace
 - IME/composition input
@@ -89,3 +90,9 @@ python3 -m http.server 4173
 Then open `http://localhost:4173`.
 
 Progress is stored locally in the browser.
+
+## Keyboard and finger guide (Build 8 preview)
+
+Lessons, free practice and challenges include a collapsible US QWERTY guide. It highlights the next key, names its finger, and highlights that finger on original translucent SVG hands over the keyboard. Capitals and shifted punctuation use the opposite-hand Shift key. Space uses either thumb; F and J show home-row anchors. The display is a teaching aid, not a clickable input keyboard, and never changes scores or saved data. It uses local HTML/CSS/SVG/JavaScript with no external assets or dependencies.
+
+Teaching reference: [TypingClub teacher handbook](https://s.typingclub.com/m/edclubdocs/media/pdf/typing-jungle-handbook.pdf), home row and opposite-hand Shift guidance. No third-party code or artwork is included.
