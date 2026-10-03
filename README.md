@@ -11,7 +11,9 @@ A classroom-friendly typing game for BigChange students.
 
 Future changes should start from `main`, prove the bug with a regression test, merge to `main`, then mirror that exact commit to the Pages branch. Do not maintain a separate live code history.
 
-Current local release candidate build: `core-v3-20261003-8`. Build 8 is a local preview until the release gate is verified.
+Current local release candidate build: `core-v3-20261003-9`. Build 9 contains the before-UI behavior fixes and is a local preview until its release gate is verified.
+
+Build 9 merges completed lessons and best challenge results across tabs. Student records now have an ID so old tabs cannot restore cleared progress or write into a new student's record, including a student with the same name. Existing records upgrade without losing progress. Failed resets show a retryable warning; dropped text cannot earn typing credit; expired challenges always show zero seconds. The visual keyboard and typing engine are unchanged.
 
 ## Why earlier versions kept failing
 
@@ -91,7 +93,7 @@ Then open `http://localhost:4173`.
 
 Progress is stored locally in the browser.
 
-## Keyboard and finger guide (Build 8 preview)
+## Keyboard and finger guide
 
 Lessons, free practice and challenges include a collapsible US QWERTY guide. It highlights the next key, names its finger, and highlights that finger on original translucent SVG hands over the keyboard. Capitals and shifted punctuation use the opposite-hand Shift key. Space uses either thumb; F and J show home-row anchors. The display is a teaching aid, not a clickable input keyboard, and never changes scores or saved data. It uses local HTML/CSS/SVG/JavaScript with no external assets or dependencies.
 
