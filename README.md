@@ -11,7 +11,9 @@ A classroom-friendly typing game for BigChange students.
 
 Future changes should start from `main`, prove the bug with a regression test, merge to `main`, then mirror that exact commit to the Pages branch. Do not maintain a separate live code history.
 
-Current local release candidate build: `core-v3-20261003-9`. Build 9 contains the before-UI behavior fixes and is a local preview until its release gate is verified.
+Current local release candidate: `core-v3-20261003-14`. Build 14 packages the realistic game artwork and academy branding with a smaller welcome video. Publishing requires passing the release checks and mirroring the merged `main` commit to the Pages branch.
+
+The Build 10 UI uses a light green palette, compact navigation with an accessible current-section indicator, clearer lesson cards and a desktop typing workspace beside the keyboard guide. Tablets and phones stack the panels; scores remain together in a compact row. The input area is shorter, the guide retains its translucent hands, and narrow-screen placeholder text remains readable. No new dependencies or scoring changes are included.
 
 Build 9 merges completed lessons and best challenge results across tabs. Student records now have an ID so old tabs cannot restore cleared progress or write into a new student's record, including a student with the same name. Existing records upgrade without losing progress. Failed resets show a retryable warning; dropped text cannot earn typing credit; expired challenges always show zero seconds. The visual keyboard and typing engine are unchanged.
 
@@ -98,3 +100,17 @@ Progress is stored locally in the browser.
 Lessons, free practice and challenges include a collapsible US QWERTY guide. It highlights the next key, names its finger, and highlights that finger on original translucent SVG hands over the keyboard. Capitals and shifted punctuation use the opposite-hand Shift key. Space uses either thumb; F and J show home-row anchors. The display is a teaching aid, not a clickable input keyboard, and never changes scores or saved data. It uses local HTML/CSS/SVG/JavaScript with no external assets or dependencies.
 
 Teaching reference: [TypingClub teacher handbook](https://s.typingclub.com/m/edclubdocs/media/pdf/typing-jungle-handbook.pdf), home row and opposite-hand Shift guidance. No third-party code or artwork is included.
+
+## Official welcome branding (Build 11 preview)
+
+The supplied BigChange Academy PNG is used unchanged in the header and welcome screen. The optional muted welcome MP4 is a five-second, 400px web copy (68,537 bytes) of the supplied animation. The original video is preserved separately. New students can start immediately; returning students do not download the clip. Reduced-motion users see the static logo, with playback available by choice. Unsupported or unavailable video falls back to the logo. All artwork remains local.
+
+The original black-and-gold logo sits on a shared white-and-ivory surface in the header and welcome screen. This keeps its lettering readable across the game palettes and darker backdrops without recolouring the academy artwork.
+
+## Game experience (Build 12 preview)
+
+Letter Rain, Rocket Race and Bubble Pop have illustrated cards and local CSS/SVG scenes. Scores retain the existing rules. Students can pause/resume, restart, return to the game selection, and use a letter input with an on-screen keyboard. Rocket Race still finishes at 20 correct keys. Decorative movement respects reduced-motion settings.
+
+## Dimensional artwork (Build 13 preview)
+
+Game scenes and cards use softly lit skies, textured grass, bevelled letter tiles, reflective bubbles, shaded planets and a metallic SVG rocket with a glass window. Artwork uses local gradients and shadows without new media downloads or dependencies. The original logo, game controls and scoring rules remain intact.

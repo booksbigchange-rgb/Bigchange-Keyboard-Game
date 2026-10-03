@@ -133,6 +133,11 @@ function stopTypingTimer(){
 
 function show(id){
   stopTypingTimer();
+  const section=id==='practice'?(challengeMode?'challenge':lessonMode?'learn':'practice'):
+    id==='game-play'?'games':id;
+  document.querySelectorAll('[data-view]').forEach(button=>{
+    button.setAttribute('aria-current',button.dataset.view===section?'page':'false');
+  });
   document.dispatchEvent(new CustomEvent('bc:viewchange',{detail:{id:id}}));
   document.querySelectorAll('.view').forEach(view=>{
     view.style.display=view.id===id?'block':'none';

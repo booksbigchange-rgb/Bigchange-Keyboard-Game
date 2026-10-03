@@ -28,6 +28,7 @@ jobs:
           node --check js/bigchange.js
           node --check js/games.js
           node --check js/keyboard-guide.js
+          node --check js/branding.js
           node --check tests/typing-engine.test.cjs
           node --check tests/app-smoke.test.cjs
           node --check tests/app-regression.test.cjs

@@ -26,6 +26,105 @@ async function targetText(page){
   return (await page.locator('#target').textContent()).replace(/\s+/g,' ').trim();
 }
 
+test('game scenes accept phone input once and keep the keyboard usable',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await createStudent(page);
+  await page.locator('[data-view="games"]').click();await page.locator('[data-game="bubble"]').click();
+  let key=await page.locator('[data-game-target]').textContent();
+  await page.locator('#game-letter').fill(key);await expect(page.locator('#game-score')).toHaveText('1');
+  await expect(page.locator('#game-letter')).toHaveValue('');
+  await page.locator('#game-letter').fill('1');await expect(page.locator('#game-streak')).toHaveText('0');
+  await expect(page.locator('#game-score')).toHaveText('1');
+  key=await page.locator('[data-game-target]').textContent();await page.locator('#game-board').focus();
+  await page.keyboard.type(key);await expect(page.locator('#game-score')).toHaveText('2');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('pause freezes Letter Rain and resume preserves the current letter',async({page})=>{
+  await createStudent(page);await page.locator('[data-view="games"]').click();await page.locator('[data-game="rain"]').click();
+  await page.locator('#game-pause').click();const before=await page.locator('[data-game-target]').getAttribute('style');
+  const key=await page.locator('[data-game-target]').textContent();await page.waitForTimeout(850);
+  expect(await page.locator('[data-game-target]').getAttribute('style')).toBe(before);
+  await expect(page.locator('#game-letter')).toBeDisabled();await expect(page.locator('#game-score')).toHaveText('0');
+  await page.locator('#game-board').focus();await page.keyboard.type(key);
+  await expect(page.locator('#game-score')).toHaveText('0');
+  await page.locator('#game-pause').click();await page.keyboard.type(key);
+  await expect(page.locator('#game-score')).toHaveText('1');
+});
+
+test('restart clears a paused game and Back to Games stops its timer',async({page})=>{
+  await createStudent(page);await page.locator('[data-view="games"]').click();await page.locator('[data-game="rain"]').click();
+  await page.keyboard.type(await page.locator('[data-game-target]').textContent());await page.locator('#game-pause').click();
+  await page.locator('#game-restart').click();await expect(page.locator('#game-score')).toHaveText('0');
+  await expect(page.locator('#game-letter')).toBeEnabled();await expect(page.locator('#game-pause')).toHaveText('Pause');
+  await page.locator('#game-back').click();await expect(page.locator('#games')).toBeVisible();
+  const board=await page.locator('#game-board').innerHTML();await page.waitForTimeout(850);
+  expect(await page.locator('#game-board').innerHTML()).toBe(board);
+});
+
+test('game input ignores composition intermediates and blocked paste',async({page})=>{
+  await createStudent(page);await page.locator('[data-view="games"]').click();await page.locator('[data-game="bubble"]').click();
+  const key=await page.locator('[data-game-target]').textContent();
+  await page.locator('#game-letter').evaluate((input,key)=>{
+    input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));input.value=key;
+    input.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true}));
+  },key);
+  await expect(page.locator('#game-score')).toHaveText('0');
+  await page.locator('#game-letter').evaluate(input=>input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true})));
+  await expect(page.locator('#game-score')).toHaveText('1');
+  await page.locator('#game-letter').evaluate(input=>input.dispatchEvent(new InputEvent('input',{bubbles:true})));
+  await expect(page.locator('#game-score')).toHaveText('1');
+  const allowed=await page.locator('#game-letter').evaluate(input=>input.dispatchEvent(new Event('paste',{bubbles:true,cancelable:true})));
+  expect(allowed).toBe(false);
+});
+
+test('game decorative motion respects reduced motion',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await createStudent(page);
+  await page.locator('[data-view="games"]').click();await page.locator('[data-game="bubble"]').click();
+  expect(await page.locator('.bubble-target').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  expect(await page.locator('.scene-bubble').first().evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+});
+
+test('official welcome supports playback or a static fallback without blocking learning',async({page})=>{
+  await fresh(page);
+  await expect(page.locator('#profile')).toBeVisible();
+  await expect.poll(()=>page.locator('#brand-video').evaluate(video=>video.videoWidth>0||!!video.error)).toBe(true);
+  if(await page.locator('#brand-video').evaluate(video=>!!video.error)){
+    await expect(page.locator('#welcome-logo')).toBeVisible();
+  }else{
+    expect(await page.locator('#brand-video').evaluate(video=>video.videoWidth)).toBe(400);
+  }
+  expect(await page.locator('#brand-video').evaluate(video=>video.muted)).toBe(true);
+  await page.screenshot({path:require('node:path').resolve(__dirname,'../../../outputs/brand-welcome-desktop.png'),fullPage:true});
+  await page.locator('#student-name').fill('Brand Student');await page.locator('#save-profile').click();
+  await expect(page.locator('#lesson-list')).toBeVisible();
+  expect(await page.locator('#brand-video').evaluate(video=>video.paused)).toBe(true);
+});
+
+test('reduced motion keeps the logo visible without loading the intro',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});await fresh(page);
+  await expect(page.locator('#welcome-logo')).toBeVisible();await expect(page.locator('#brand-video')).toBeHidden();
+  expect(await page.locator('#brand-video').getAttribute('src')).toBeNull();
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:require('node:path').resolve(__dirname,'../../../outputs/brand-welcome-phone.png'),fullPage:true});
+  await page.locator('#student-name').fill('Student');await page.locator('#save-profile').click();
+  await expect(page.locator('#student-nav')).toBeVisible();
+});
+
+test('returning students do not download the welcome movie',async({page})=>{
+  await createStudent(page);let requested=false;
+  page.on('request',request=>{if(request.url().includes('bigchange-welcome-web.mp4'))requested=true});
+  await page.reload();await expect(page.locator('#welcome')).toContainText('Test Student');
+  expect(requested).toBe(false);await expect(page.locator('.brand-logo img')).toBeVisible();
+});
+
+test('an unavailable intro leaves a usable welcome form and official logo',async({page})=>{
+  await page.route('**/bigchange-welcome-web.mp4',route=>route.abort());await fresh(page);
+  await expect(page.locator('#welcome-logo')).toBeVisible();await expect(page.locator('#save-profile')).toBeEnabled();
+  await page.locator('#student-name').fill('Offline Student');await page.locator('#save-profile').click();
+  await expect(page.locator('#lesson-list')).toBeVisible();
+});
+
 async function completeLesson(page,index){
   await page.locator('[data-view="learn"]').click();
   await page.locator('[data-lesson="'+index+'"]').click();
@@ -101,8 +200,8 @@ test('legacy saved progress upgrades without loss',async({page})=>{
 
 test('deployed build marker identifies Typing Core V3',async({page})=>{
   await page.goto(BASE_URL);
-  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261003-9');
-  await expect(page.locator('footer')).toContainText('Build core-v3-20261003-9');
+  await expect(page.locator('meta[name="bigchange-build"]')).toHaveAttribute('content','core-v3-20261003-14');
+  await expect(page.locator('footer')).toContainText('Build core-v3-20261003-14');
 });
 
 test('manual V3 engine page also passes in Chromium',async({page})=>{

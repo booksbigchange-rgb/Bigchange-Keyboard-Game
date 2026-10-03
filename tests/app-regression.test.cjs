@@ -67,7 +67,7 @@ test('challenge shows a bounded moving word window',()=>{
 });
 test('game ignores navigation Space, shortcuts, composition and other controls',()=>{
  const a=app();a.el('game:bubble').onclick();
- const target=a.el('#game-board').innerHTML.match(/>([^<>]+)<\/div>$/)[1];
+ const target=a.el('#game-board').innerHTML.match(/data-game-target[^>]*>([^<]+)</)[1];
  for(const extra of [{key:' ',target:a.el('nav:learn')},{key:target,target:a.el('nav:learn')},{ctrlKey:true},{altKey:true},{metaKey:true},{isComposing:true}]){
   const e=event({key:target,target:a.el('#game-board'),...extra});a.documentListeners.keydown(e);
   assert.equal(e.prevented,false);assert.equal(a.el('#game-score').textContent,0);
